@@ -4,7 +4,8 @@ App de controle financeiro do casal (Leon e esposa). O Leon descreve as funçõe
 
 ## Arquitetura
 - Site estático, **sem build e sem npm**: HTML + CSS + JavaScript (módulos ES). Firebase carregado pelo CDN (`https://www.gstatic.com/firebasejs/11.0.2/...`).
-- Hospedagem: **GitHub Pages** do branch `main` (raiz). Todo push no `main` publica em ~1 minuto.
+- Hospedagem: **GitHub Pages** do branch `main` (raiz), em https://leongeremiassilva.github.io/App-Contas/ . Todo push no `main` publica em ~1 minuto.
+- Firebase: projeto `contas-da-casa-1fd37` (Firestore em southamerica-east1, plano Spark gratuito). Console: https://console.firebase.google.com/u/1/project/contas-da-casa-1fd37 (no navegador, a conta leon é a /u/1/; a /u/0/ é a sdeesfopmpr, não mexer).
 - Login: Firebase Auth com Google. Banco: Cloud Firestore.
 - Segurança: `firestore.rules` só deixa as duas contas Google lerem/gravarem. As regras são publicadas no Console do Firebase (Firestore → Regras), não pelo push.
 - Firebase do projeto fica na conta Google **leon.geremias.silva@gmail.com**. O repositório também é dessa conta; a conta GitHub `sdeesfopmpr` é colaboradora.

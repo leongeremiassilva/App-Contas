@@ -4,12 +4,12 @@
 // Essas chaves são públicas por natureza; quem protege os dados são as regras em firestore.rules.
 // Enquanto apiKey estiver vazio, o app roda em MODO DEMONSTRAÇÃO (dados só neste navegador).
 export const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: "",
+  apiKey: "AIzaSyAyzLxqclIXh-vExtAAXCCHaH20wDrWS-0",
+  authDomain: "contas-da-casa-1fd37.firebaseapp.com",
+  projectId: "contas-da-casa-1fd37",
+  storageBucket: "contas-da-casa-1fd37.firebasestorage.app",
+  messagingSenderId: "229662439713",
+  appId: "1:229662439713:web:8033607e28e7783a5d6660",
 };
 
 // As duas pessoas da casa. O "email" é a conta Google usada para entrar.
