@@ -1,0 +1,20 @@
+rules_version = '2';
+
+// Só as duas contas Google da casa podem ler e gravar qualquer coisa.
+// Para trocar ou adicionar um e-mail: edite a lista abaixo E a lista "pessoas" em js/config.js,
+// depois publique estas regras no Console do Firebase (Firestore → Regras → Publicar).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function daCasa() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in [
+          'leon.geremias.silva@gmail.com',
+          'EMAIL_DA_ESPOSA@gmail.com'
+        ];
+    }
+    match /{documento=**} {
+      allow read, write: if daCasa();
+    }
+  }
+}
