@@ -525,3 +525,34 @@ label.arquivo.desativado span { color: var(--suave); cursor: not-allowed; }
 @media (min-width: 900px) { .barra-importar { bottom: 12px; } }
 body.sem-fab .fab { display: none; }
 label.check span small { font-size: 12px; }
+
+/* ---------- Quanto ainda posso gastar ---------- */
+.painel.quanto { border-left: 5px solid var(--verde); }
+.painel.quanto.negativo { border-left-color: var(--perigo); }
+.quanto-topo { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.rotulo-quanto { display: block; font-size: 14px; color: var(--suave); }
+.valor-quanto { display: block; font-size: 28px; font-variant-numeric: tabular-nums; color: var(--verde); }
+.quanto.negativo .valor-quanto { color: var(--perigo); }
+.conta-quanto { margin-top: 8px; font-size: 14px; }
+.conta-quanto summary { cursor: pointer; color: var(--suave); padding: 4px 0; }
+.conta-quanto .linha-simples span { color: var(--suave); }
+.linha-pessoas { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; border-top: 1px solid var(--borda); background: none; padding: 10px 2px 2px; margin-top: 4px; text-align: left; font-size: 14px; color: var(--texto); }
+.linha-pessoas span { flex: 1; }
+.linha-pessoas .ico { color: var(--suave); }
+
+/* ---------- Parcelamentos ---------- */
+.trilho-mini { display: block; height: 5px; border-radius: 3px; background: var(--fundo); overflow: hidden; margin-top: 6px; }
+.trilho-mini span { display: block; height: 100%; background: var(--verde); border-radius: 3px; }
+.val-duplo { display: grid; justify-items: end; gap: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.val-duplo small { font-size: 12px; }
+
+/* ---------- Pessoas ---------- */
+.cat-ic.receber { --c: #0d9488; }
+.cat-ic.pagar { --c: #ea580c; }
+.pessoa-cab { display: flex; justify-content: space-between; font-size: 14px; color: var(--texto); }
+.pessoa-cab span:last-child { font-size: 13px; }
+.item [data-conferir] { flex: none; }
+@media (max-width: 600px) { .item [data-conferir] { padding: 4px 8px; font-size: 0; gap: 0; } .item [data-conferir] .ico { width: 18px; height: 18px; } }
+.lateral nav { overflow-y: auto; min-height: 0; }
+.lateral { overflow: hidden; }
+.linha-simples b { white-space: nowrap; }

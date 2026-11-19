@@ -3,7 +3,7 @@ import { pessoas } from "./config.js";
 import { moeda, mesAtual, CATEGORIAS_PADRAO } from "./financas.js";
 import { svg, existeIcone, ICONE_GRUPO } from "./icones.js";
 
-export const COLECOES = ["lancamentos", "contas", "categorias", "grupos", "fixas", "metas", "config"];
+export const COLECOES = ["lancamentos", "contas", "categorias", "grupos", "fixas", "metas", "acertos", "config"];
 export const FILTRO_VAZIO = { grupo: "", pessoa: "", categoria: "", conta: "", status: "", tag: "", busca: "" };
 
 export const estado = {
@@ -15,6 +15,7 @@ export const estado = {
   grupos: [],
   fixas: [],
   metas: [],
+  acertos: [],
   config: [],
   carregado: Object.fromEntries(COLECOES.map((c) => [c, false])),
   mes: mesAtual(),
@@ -23,6 +24,8 @@ export const estado = {
   gerenciarFixas: false,
   rel: { aba: "fluxo", meses: 6, categoria: null, tag: null },
   importacao: null,
+  verParcelas: "andamento", // andamento | terminado | todos
+  verAcertos: false, // mostrar quitados
   diasAviso: Number(lerPreferencia("diasAviso")) || 5,
   filtro: { ...FILTRO_VAZIO },
   ocultar: lerPreferencia("ocultarValores") === "1",

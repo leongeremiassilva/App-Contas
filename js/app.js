@@ -12,9 +12,9 @@ import {
 } from "./financas.js";
 
 const VERSAO_DADOS = 5;
-const MENU_LATERAL = ["inicio", "lancamentos", "fixas", "relatorios", "limites", "metas", "cartoes", "contas", "categorias", "importar"];
+const MENU_LATERAL = ["inicio", "lancamentos", "fixas", "parcelamentos", "relatorios", "limites", "metas", "pessoas", "cartoes", "contas", "categorias", "importar"];
 const MENU_INFERIOR = ["inicio", "lancamentos", "fixas", "relatorios", "mais"];
-const DENTRO_DE_MAIS = ["cartoes", "contas", "categorias", "limites", "metas", "importar"];
+const DENTRO_DE_MAIS = ["cartoes", "contas", "categorias", "limites", "metas", "importar", "parcelamentos", "pessoas"];
 
 // ---------- Inicialização e login ----------
 

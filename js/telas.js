@@ -5,14 +5,14 @@ import {
   TIPOS_CONTA, NOMES_MESES, dinheiro, FILTRO_VAZIO, temaEscuroAtivo, todasAsTags, meta,
 } from "./estado.js";
 import { svg } from "./icones.js";
-import { htmlRelatorios, htmlMetas, htmlImportar, htmlAvisoInicio, ligarExtras } from "./telas-extras.js";
+import { htmlRelatorios, htmlMetas, htmlImportar, htmlAvisoInicio, ligarExtras, htmlParcelamentos, htmlPessoas, htmlQuantoPossoGastar, htmlResumoPessoas } from "./telas-extras.js";
 import { $, $$, esc, toast, erroMsg } from "./ui.js";
 import {
   hojeISO, mesAtual, nomeMes, dataCurta, somarMeses, resumoDoMes, grupoDe, fixasDoMes, estaPago,
   saldosDasContas, faturaDoCartao, contasAPagar, aReceber, dataDoMes,
 } from "./financas.js";
 import {
-  formLancamento, formConta, formCategoria, formFixa, pagarFixa, pagarFatura, alternarPago, exportarCSV,
+  formLancamento, formConta, formCategoria, formFixa, pagarFixa, pagarFatura, alternarPago, exportarCSV, formConferirSaldo,
 } from "./formularios.js";
 
 const CORES_GRAFICO = ["#16a34a", "#2f6fde", "#d9467a", "#f59e0b", "#8b5cf6", "#0891b2", "#a3a3a3"];
@@ -63,6 +63,8 @@ function htmlInicio() {
       </div>
     </section>
 
+    ${htmlQuantoPossoGastar(r)}
+
     <div class="grade">
       <section class="painel">
         <div class="cab"><h2>Minhas contas</h2><button class="btn link" data-ir="contas">Gerenciar ${svg("direita")}</button></div>
@@ -74,6 +76,7 @@ function htmlInicio() {
             <span class="txt"><b>${esc(c.nome)}</b><small>${esc(pessoa(c.dono).nome)}</small></span>
             <span class="val ${saldos[c.id].atual < 0 ? "neg" : "azul"}">${dinheiro(saldos[c.id].atual)}</span>
           </li>`).join("")}</ul>` : `<p class="vazio">Nenhuma conta cadastrada.</p>`}
+        ${htmlResumoPessoas()}
         <div class="acoes"><button class="btn suave" data-nova-conta="conta">+ Adicionar conta</button></div>
       </section>
 
@@ -175,7 +178,7 @@ function lancamentosFiltrados() {
       if (!f.grupo) return true;
       if (f.grupo === "__receita") return l.tipo === "receita";
       if (f.grupo === "__despesa") return l.tipo === "despesa";
-      if (f.grupo === "__transf") return l.tipo === "transferencia";
+      if (f.grupo === "__transf") return l.tipo === "transferencia" || l.tipo === "ajuste";
       return grupoDe(l, estado.categorias) === f.grupo;
     })
     .filter((l) => !f.pessoa || (l.pessoalDe || l.pessoa) === f.pessoa)
@@ -214,7 +217,7 @@ function htmlLancamentos() {
         <option value="">Tudo</option>
         <option value="__despesa" ${f.grupo === "__despesa" ? "selected" : ""}>Só despesas</option>
         <option value="__receita" ${f.grupo === "__receita" ? "selected" : ""}>Só receitas</option>
-        <option value="__transf" ${f.grupo === "__transf" ? "selected" : ""}>Transferências</option>
+        <option value="__transf" ${f.grupo === "__transf" ? "selected" : ""}>Transferências e ajustes</option>
         <optgroup label="Grupo">${gruposOrdenados().map((g) => `<option value="${g.id}" ${f.grupo === g.id ? "selected" : ""}>${esc(g.nome)}</option>`).join("")}</optgroup>
       </select>
       <select id="f-conta"><option value="">Todas as contas</option>${estado.contas.map((c) => `<option value="${c.id}" ${f.conta === c.id ? "selected" : ""}>${esc(c.nome)}${c.tipo === "cartao" ? " (cartão)" : ""}</option>`).join("")}</select>
@@ -236,6 +239,16 @@ function htmlLancamentos() {
 
 export function htmlItem(l) {
   const c = conta(l.contaId);
+  if (l.tipo === "ajuste") {
+    return `
+      <li class="item" data-editar="${l.id}">
+        <span class="status-pago ok">${svg("check")}</span>
+        <span class="cat-ic neutro">${svg(l.acertoId ? "pessoas" : "conferir")}</span>
+        <span class="txt"><b>${esc(l.descricao || "Ajuste de saldo")}</b>
+          <small><span class="etiqueta">${l.acertoId ? "A receber / a pagar" : "Ajuste de saldo"}</span> ${esc(c?.nome || "")}</small></span>
+        <span class="val ${l.valor >= 0 ? "receita" : ""}">${l.valor >= 0 ? "+" : "−"}${dinheiro(Math.abs(l.valor))}</span>
+      </li>`;
+  }
   if (l.tipo === "transferencia") {
     const d = conta(l.contaDestinoId);
     return `
@@ -376,10 +389,11 @@ function htmlContas() {
     ${lista.length ? `<ul class="lista">${lista.map((c) => `
       <li class="item" data-editar-conta="${c.id}">
         ${icConta(c)}
-        <span class="txt"><b>${esc(c.nome)}</b><small><span class="ponto" style="background:${pessoa(c.dono).cor}"></span>${esc(pessoa(c.dono).nome)} · ${TIPOS_CONTA[c.tipo]}${saldos[c.id].previsto !== saldos[c.id].atual ? ` · previsto ${dinheiro(saldos[c.id].previsto)}` : ""}</small></span>
+        <span class="txt"><b>${esc(c.nome)}</b><small><span class="ponto" style="background:${pessoa(c.dono).cor}"></span>${esc(pessoa(c.dono).nome)} · ${TIPOS_CONTA[c.tipo]}${saldos[c.id].previsto !== saldos[c.id].atual ? ` · previsto ${dinheiro(saldos[c.id].previsto)}` : ""}${c.conferidoEm ? ` · conferido em ${dataCurta(c.conferidoEm)}` : ""}</small></span>
         <span class="val ${saldos[c.id].atual < 0 ? "neg" : "azul"}">${dinheiro(saldos[c.id].atual)}</span>
+        <button class="btn pequeno" data-conferir="${c.id}" title="Conferir com o saldo do banco">${svg("conferir")} Conferir</button>
       </li>`).join("")}</ul>` : `<p class="vazio">Cadastre as contas bancárias de cada um. Informe o saldo atual como saldo inicial.</p>`}
-    <p class="sub">O saldo é o saldo inicial mais tudo que já foi pago ou recebido na conta. Lançamentos pendentes entram só no previsto.</p>`;
+    <p class="sub">O saldo é o saldo inicial mais tudo que já foi pago ou recebido na conta. Lançamentos pendentes entram só no previsto. Use <b>Conferir</b> para comparar com o saldo do banco: se não bater, o app lança um ajuste.</p>`;
 }
 
 // ---------- Categorias ----------
@@ -434,6 +448,8 @@ function htmlMais() {
     <div class="cab-pagina"><h1>Mais</h1></div>
     <ul class="lista menu-mais">
       <li class="item" data-ir="cartoes">${icConta({ tipo: "cartao" })}<span class="txt"><b>Cartões de crédito</b><small>faturas e pagamentos</small></span><span class="seta">${svg("direita")}</span></li>
+      <li class="item" data-ir="parcelamentos"><span class="cat-ic neutro">${svg("parcelas")}</span><span class="txt"><b>Parcelamentos</b><small>compras parceladas e quanto falta</small></span><span class="seta">${svg("direita")}</span></li>
+      <li class="item" data-ir="pessoas"><span class="cat-ic neutro">${svg("pessoas")}</span><span class="txt"><b>A receber e a pagar</b><small>valores com outras pessoas</small></span><span class="seta">${svg("direita")}</span></li>
       <li class="item" data-ir="metas"><span class="cat-ic neutro">${svg("bandeira")}</span><span class="txt"><b>Metas de economia</b><small>quanto já guardaram para cada objetivo</small></span><span class="seta">${svg("direita")}</span></li>
       <li class="item" data-ir="importar"><span class="cat-ic neutro">${svg("importar")}</span><span class="txt"><b>Importar extrato</b><small>arquivo OFX ou CSV do banco</small></span><span class="seta">${svg("direita")}</span></li>
       <li class="item" data-ir="contas">${icConta({ tipo: "conta" })}<span class="txt"><b>Contas</b><small>saldos das contas bancárias</small></span><span class="seta">${svg("direita")}</span></li>
@@ -455,6 +471,8 @@ export const TELAS = {
   categorias: { titulo: "Categorias", icone: "etiqueta", html: htmlCategorias, usaMes: false },
   relatorios: { titulo: "Relatórios", icone: "barras", html: htmlRelatorios, usaMes: true },
   metas: { titulo: "Metas", icone: "bandeira", html: htmlMetas, usaMes: false },
+  parcelamentos: { titulo: "Parcelamentos", icone: "parcelas", html: htmlParcelamentos, usaMes: true },
+  pessoas: { titulo: "A receber e a pagar", icone: "pessoas", html: htmlPessoas, usaMes: false },
   importar: { titulo: "Importar extrato", icone: "importar", html: htmlImportar, usaMes: false },
   mais: { titulo: "Mais", icone: "menu", html: htmlMais, usaMes: false },
 };
@@ -474,6 +492,7 @@ export function ligarEventos(el, nav) {
   on("[data-novo]", (b) => formLancamento(null, { tipo: b.dataset.novo }));
   on("[data-nova-conta]", (b) => formConta(null, b.dataset.novaConta));
   on("[data-editar-conta]", (b) => formConta(conta(b.dataset.editarConta)));
+  on("[data-conferir]", (b, ev) => { ev.stopPropagation(); formConferirSaldo(conta(b.dataset.conferir)); });
   on("[data-abrir-cartao]", (b) => { estado.cartaoAberto = b.dataset.abrirCartao; nav.irPara("cartoes"); });
   on("[data-ir]", (b) => nav.irPara(b.dataset.ir));
   on("[data-ir-filtro]", (b) => nav.irPara("lancamentos", JSON.parse(b.dataset.irFiltro)));

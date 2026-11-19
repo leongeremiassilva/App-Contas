@@ -14,6 +14,10 @@ Funciona nos moldes do Organizze, adaptado ao jeito do casal:
 - **Importar extrato** OFX ou CSV do banco/fatura, com categoria sugerida e proteção contra duplicados.
 - **Avisos de vencimento**: sino no topo e aviso na visão geral para contas atrasadas ou que vencem nos próximos dias.
 - **Tags**, **subcategorias** e **metas de economia** (guardar e resgatar, com quanto falta por mês).
+- **Parcelamentos**: compras parceladas em andamento, quanto falta e quanto já está comprometido nos próximos meses.
+- **Quanto ainda posso gastar** no mês (e por dia), descontando contas fixas e o que falta guardar.
+- **Conferir saldo com o banco**: se não bater, o app lança um ajuste de saldo.
+- **A receber e a pagar** de outras pessoas, com pagamentos parciais.
 - Categorias padrão do Organizze. Exportação em CSV. Menu lateral no computador e barra inferior no celular; instalável na tela inicial.
 
 ## Configuração (feita uma vez)

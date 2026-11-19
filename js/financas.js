@@ -153,6 +153,9 @@ export function gerarLancamentos(base, conta, modo, vezes, grupoId) {
   }));
 }
 
+// Só receitas e despesas entram nos totais; transferências e ajustes de saldo mexem apenas no saldo das contas.
+export const ehMovimento = (l) => l.tipo === "receita" || l.tipo === "despesa";
+
 // ---------- Grupos e contas fixas ----------
 
 // Grupo de um lançamento: o escolhido no lançamento ou, se não houver, o da categoria.
@@ -184,12 +187,12 @@ export function resumoDoMes({ lancamentos, mes, pessoas, contas, categorias, gru
     receitasPorPessoa: Object.fromEntries(pessoas.map((p) => [p.id, 0])),
     pessoalPorPessoa: Object.fromEntries(pessoas.map((p) => [p.id, 0])),
     porCategoria: {},
-    quantidade: doMes.filter((l) => l.tipo !== "transferencia").length,
+    quantidade: doMes.filter(ehMovimento).length,
   };
   const gastoGrupo = {};
   const faturas = {};
   for (const l of doMes) {
-    if (l.tipo === "transferencia") continue;
+    if (!ehMovimento(l)) continue;
     if (l.tipo === "receita") {
       r.receitas += l.valor;
       if (l.pessoa in r.receitasPorPessoa) r.receitasPorPessoa[l.pessoa] += l.valor;
@@ -257,6 +260,7 @@ export function saldosDasContas(contas, lancamentos, mesLimite) {
     if (l.tipo === "receita") mov.push([l.contaId, l.valor]);
     else if (l.tipo === "despesa") mov.push([l.contaId, -l.valor]);
     else if (l.tipo === "transferencia") mov.push([l.contaId, -l.valor], [l.contaDestinoId, l.valor]);
+    else if (l.tipo === "ajuste") mov.push([l.contaId, l.valor]); // valor com sinal
     for (const [id, v] of mov) {
       if (!r[id]) continue;
       if (estaPago(l)) { r[id].atual += v; r[id].previsto += v; }
@@ -268,7 +272,7 @@ export function saldosDasContas(contas, lancamentos, mesLimite) {
 
 // Fatura de um cartão no mês de vencimento "mes".
 export function faturaDoCartao(cartao, mes, lancamentos, hoje = hojeISO()) {
-  const itens = lancamentos.filter((l) => l.contaId === cartao.id && l.competencia === mes && l.tipo !== "transferencia");
+  const itens = lancamentos.filter((l) => l.contaId === cartao.id && l.competencia === mes && ehMovimento(l));
   const total = itens.reduce((s, l) => s + (l.tipo === "receita" ? -l.valor : l.valor), 0);
   const pagamentos = lancamentos.filter((l) => l.tipo === "transferencia" && l.contaDestinoId === cartao.id && l.faturaDe === mes && estaPago(l));
   const pago = pagamentos.reduce((s, l) => s + l.valor, 0);
@@ -372,7 +376,7 @@ export function serieMensal(lancamentos, meses) {
   const base = Object.fromEntries(meses.map((m) => [m, { mes: m, receitas: 0, despesas: 0 }]));
   for (const l of lancamentos) {
     const b = base[l.competencia];
-    if (!b || l.tipo === "transferencia") continue;
+    if (!b || !ehMovimento(l)) continue;
     if (l.tipo === "receita") b.receitas += l.valor;
     else b.despesas += l.valor;
   }
@@ -400,7 +404,7 @@ export function totaisPorTag(lancamentos, meses) {
   const set = meses ? new Set(meses) : null;
   const r = {};
   for (const l of lancamentos) {
-    if (!l.tags?.length || l.tipo === "transferencia" || (set && !set.has(l.competencia))) continue;
+    if (!l.tags?.length || !ehMovimento(l) || (set && !set.has(l.competencia))) continue;
     for (const t of l.tags) {
       r[t] ||= { despesas: 0, receitas: 0, quantidade: 0 };
       r[t][l.tipo === "receita" ? "receitas" : "despesas"] += l.valor;
@@ -411,3 +415,60 @@ export function totaisPorTag(lancamentos, meses) {
 }
 
 export const normalizarTag = (t) => String(t || "").trim().replace(/^#/, "").replace(/\s+/g, " ").toLowerCase();
+
+// ---------- Quanto ainda posso gastar ----------
+
+// Receita do mês − o que já foi lançado − contas fixas ainda não lançadas − o que falta guardar no grupo Poupar.
+export function quantoPossoGastar(r, mes, hoje = hojeISO()) {
+  const poupar = r.grupos.find((g) => g.grupo.id === "poupar");
+  const reservaPoupar = poupar ? Math.max(0, poupar.meta - poupar.gasto) : 0;
+  const disponivel = r.receitas - r.despesas - r.fixas.pendente - reservaPoupar;
+  const [a, m] = mes.split("-").map(Number);
+  const ultimo = new Date(a, m, 0).getDate();
+  const mesHoje = hoje.slice(0, 7);
+  const diasRestantes = mes === mesHoje ? ultimo - Number(hoje.slice(8, 10)) + 1 : mes > mesHoje ? ultimo : 0;
+  return {
+    disponivel, reservaPoupar, fixasPendentes: r.fixas.pendente, receitas: r.receitas, despesas: r.despesas,
+    diasRestantes, porDia: diasRestantes && disponivel > 0 ? Math.floor(disponivel / diasRestantes) : 0,
+  };
+}
+
+// ---------- Parcelamentos ----------
+
+// Compras parceladas (lançamentos com recorrencia "parcelado"), vistas a partir do mês de referência.
+export function parcelamentos(lancamentos, mesRef) {
+  const grupos = {};
+  for (const l of lancamentos) {
+    if (l.recorrencia !== "parcelado" || !l.grupoId) continue;
+    (grupos[l.grupoId] ||= []).push(l);
+  }
+  return Object.values(grupos).map((ps) => {
+    ps.sort((a, b) => a.parcela - b.parcela);
+    const restantes = ps.filter((p) => p.competencia > mesRef);
+    const doMes = ps.find((p) => p.competencia === mesRef) || null;
+    const pagas = ps.filter((p) => p.competencia < mesRef).length;
+    return {
+      grupoId: ps[0].grupoId, primeira: ps[0], parcelas: ps, total: ps.reduce((s, p) => s + p.valor, 0),
+      totalParcelas: ps[0].totalParcelas || ps.length, doMes, pagas, restantes,
+      valorRestante: restantes.reduce((s, p) => s + p.valor, 0),
+      inicio: ps[0].competencia, fim: ps.at(-1).competencia,
+      situacao: ps.at(-1).competencia < mesRef ? "terminado" : ps[0].competencia > mesRef ? "futuro" : "andamento",
+    };
+  });
+}
+
+// Quanto das próximas faturas/meses já está comprometido com parcelas.
+export function compromissoParcelas(lancamentos, mesRef, meses = 6) {
+  const lista = Array.from({ length: meses }, (_, i) => somarMeses(mesRef, i));
+  const r = Object.fromEntries(lista.map((m) => [m, 0]));
+  for (const l of lancamentos) if (l.recorrencia === "parcelado" && l.competencia in r) r[l.competencia] += l.valor;
+  return lista.map((m) => ({ mes: m, valor: r[m] }));
+}
+
+// ---------- A receber e a pagar (pessoas) ----------
+
+export function situacaoAcerto(a) {
+  const pago = (a.baixas || []).reduce((s, b) => s + b.valor, 0);
+  const restante = Math.max(0, (a.valor || 0) - pago);
+  return { pago, restante, quitado: restante === 0 };
+}

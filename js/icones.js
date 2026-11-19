@@ -34,6 +34,10 @@ const P = {
   sino: '<path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
   bandeira: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
   arquivo: '<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5M8.5 13h7M8.5 17h5"/>',
+  parcelas: '<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M8.8 6v12M15.2 6v12"/><path d="M4.8 12h1.8"/>',
+  conferir: '<circle cx="10.5" cy="10.5" r="7"/><path d="m20.5 20.5-4.8-4.8M7.5 10.5l2 2 3.5-3.5"/>',
+  pessoas: '<circle cx="8" cy="8" r="3.2"/><circle cx="16.5" cy="9.5" r="2.7"/><path d="M2.5 19.5a5.5 5.5 0 0 1 11 0M13.5 15.2a4.6 4.6 0 0 1 8 4.3"/>',
+  carteiraMais: '<path d="M12 3v18M7.5 7.5h6.5a3 3 0 0 1 0 6H9.5a3 3 0 0 0 0 6H17"/>',
   fechar: '<path d="M6 6l12 12M18 6 6 18"/>',
   // grupos
   fixos: '<path d="M9 3h6l-.8 5.5L18 12H6l3.8-3.5z"/><path d="M12 12v9"/>',

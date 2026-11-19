@@ -9,9 +9,10 @@ import { svg } from "./icones.js";
 import {
   moeda, hojeISO, nomeMes, dataCurta, somarMeses, mesesAte, serieMensal, despesasPorCategoria, totaisPorTag,
   resumoDoMes, progressoMeta, avisosDeVencimento, faturaDoCartao, competencia, grupoDe, estaPago,
+  quantoPossoGastar, parcelamentos, compromissoParcelas, situacaoAcerto,
 } from "./financas.js";
 import { pessoas } from "./config.js";
-import { formMeta, guardarNaMeta, resgatarDaMeta, pagarFixa, pagarFatura, formLancamento } from "./formularios.js";
+import { formMeta, guardarNaMeta, resgatarDaMeta, pagarFixa, pagarFatura, formLancamento, formAcerto, formBaixa } from "./formularios.js";
 import {
   decodificar, ehOFX, lerOFX, lerCSV, adivinharColunas, linhasDoCSV, sugerirCategoria, chaveImportacao,
 } from "./importar.js";
@@ -481,6 +482,142 @@ async function confirmarImportacao(nav) {
   }
 }
 
+// ---------- Quanto ainda posso gastar (visão geral) ----------
+
+export function htmlQuantoPossoGastar(r) {
+  const q = quantoPossoGastar(r, estado.mes);
+  if (!q.receitas && !q.despesas) return "";
+  const negativo = q.disponivel < 0;
+  return `
+    <section class="painel quanto ${negativo ? "negativo" : ""}">
+      <div class="quanto-topo">
+        <div>
+          <span class="rotulo-quanto">${negativo ? "Passou do que entra no mês" : "Ainda dá para gastar este mês"}</span>
+          <b class="valor-quanto">${dinheiro(Math.abs(q.disponivel))}</b>
+          ${!negativo && q.porDia ? `<small>cerca de <b>${dinheiro(q.porDia)} por dia</b> nos próximos ${q.diasRestantes} dia(s)</small>` : ""}
+        </div>
+      </div>
+      <details class="conta-quanto">
+        <summary>Como chegamos nesse valor</summary>
+        <div class="linha-simples"><span>Receitas do mês</span><b>${dinheiro(q.receitas)}</b></div>
+        <div class="linha-simples"><span>Gastos já lançados (inclui faturas e pendentes)</span><b>− ${dinheiro(q.despesas)}</b></div>
+        <div class="linha-simples"><span>Contas fixas que ainda faltam lançar</span><b>− ${dinheiro(q.fixasPendentes)}</b></div>
+        ${q.reservaPoupar ? `<div class="linha-simples"><span>Falta guardar no grupo Poupar</span><b>− ${dinheiro(q.reservaPoupar)}</b></div>` : ""}
+      </details>
+    </section>`;
+}
+
+// ---------- Parcelamentos ----------
+
+export function htmlParcelamentos() {
+  const todos = parcelamentos(estado.lancamentos, estado.mes);
+  const ver = estado.verParcelas;
+  const lista = todos
+    .filter((p) => ver === "todos" || (ver === "terminado" ? p.situacao === "terminado" : p.situacao !== "terminado"))
+    .sort((a, b) => (a.situacao === "futuro") - (b.situacao === "futuro") || a.fim.localeCompare(b.fim));
+  const ativos = todos.filter((p) => p.situacao !== "terminado");
+  const doMes = ativos.reduce((s, p) => s + (p.doMes?.valor || 0), 0);
+  const aPagar = ativos.reduce((s, p) => s + p.valorRestante, 0);
+  const comp = compromissoParcelas(estado.lancamentos, somarMeses(estado.mes, 1), 6);
+  const maiorComp = Math.max(1, ...comp.map((c) => c.valor));
+  return `
+    <div class="cab-pagina"><h1>Parcelamentos</h1></div>
+    <section class="totais-lista">
+      <div><span>Compras em andamento</span><b>${ativos.length}</b></div>
+      <div><span>Parcelas em ${nomeMes(estado.mes).split(" ")[0].toLowerCase()}</span><b class="neg">${dinheiro(doMes)}</b></div>
+      <div><span>Ainda a pagar depois</span><b>${dinheiro(aPagar)}</b></div>
+    </section>
+    ${comp.some((c) => c.valor) ? `
+    <section class="painel">
+      <h2>Já comprometido nos próximos meses</h2>
+      <p class="sub">Soma das parcelas que vão cair em cada mês (faturas e contas).</p>
+      ${comp.map((c) => `
+        <div class="barra-cat">
+          <span class="rotulo">${nomeMes(c.mes)}</span>
+          <span class="valor">${dinheiro(c.valor)}</span>
+          <span class="trilho"><span style="width:${(c.valor / maiorComp) * 100}%;background:${COR_DESPESA}"></span></span>
+        </div>`).join("")}
+    </section>` : ""}
+    <div class="abas-cartao">
+      ${[["andamento", "Em andamento"], ["terminado", "Terminados"], ["todos", "Todos"]].map(([id, nome]) => `<button class="chip ${ver === id ? "ativo" : ""}" data-ver-parcelas="${id}">${nome}</button>`).join("")}
+    </div>
+    ${lista.length ? `<ul class="lista">${lista.map((p) => {
+      const l = p.doMes || p.primeira;
+      const c = conta(l.contaId);
+      const atual = p.doMes ? `parcela ${p.doMes.parcela} de ${p.totalParcelas} neste mês` : p.situacao === "futuro" ? `começa em ${nomeMes(p.inicio)}` : p.situacao === "terminado" ? `terminou em ${nomeMes(p.fim)}` : `${p.pagas} de ${p.totalParcelas} pagas`;
+      const progresso = Math.min(1, (p.pagas + (p.doMes ? 1 : 0)) / p.totalParcelas);
+      return `
+        <li class="item parcelamento" data-editar="${l.id}">
+          ${icCat(l.categoria, "despesa")}
+          <span class="txt">
+            <b>${esc(l.descricao || l.categoria)}</b>
+            <small>${c ? `${esc(c.nome)} · ` : ""}${atual}${p.situacao !== "terminado" ? ` · última em ${nomeMes(p.fim)}` : ""}</small>
+            <span class="trilho-mini"><span style="width:${progresso * 100}%"></span></span>
+          </span>
+          <span class="val-duplo"><b>${dinheiro(l.valor)}</b><small>${p.valorRestante ? `faltam ${dinheiro(p.valorRestante)}` : `total ${dinheiro(p.total)}`}</small></span>
+        </li>`;
+    }).join("")}</ul>` : `<p class="vazio">${ver === "terminado" ? "Nenhum parcelamento terminado." : "Nenhuma compra parcelada em andamento. Ao lançar uma despesa, escolha Repetição → Parcelado."}</p>`}`;
+}
+
+// ---------- A receber e a pagar (pessoas) ----------
+
+function totaisAcertos() {
+  let receber = 0, pagar = 0;
+  for (const a of estado.acertos) {
+    const { restante } = situacaoAcerto(a);
+    if (a.tipo === "receber") receber += restante; else pagar += restante;
+  }
+  return { receber, pagar };
+}
+
+export function htmlResumoPessoas() {
+  const t = totaisAcertos();
+  if (!t.receber && !t.pagar) return "";
+  return `<button class="linha-pessoas" data-ir="pessoas">${svg("pessoas")}
+    <span>${t.receber ? `A receber <b class="pos">${dinheiro(t.receber)}</b>` : ""}${t.receber && t.pagar ? " · " : ""}${t.pagar ? `A pagar <b class="neg">${dinheiro(t.pagar)}</b>` : ""}</span>${svg("direita")}</button>`;
+}
+
+export function htmlPessoas() {
+  const t = totaisAcertos();
+  const hoje = hojeISO();
+  const abertos = estado.acertos.filter((a) => !situacaoAcerto(a).quitado);
+  const quitados = estado.acertos.filter((a) => situacaoAcerto(a).quitado);
+  const porPessoa = {};
+  for (const a of abertos) (porPessoa[a.pessoaNome] ||= []).push(a);
+  const item = (a) => {
+    const s = situacaoAcerto(a);
+    const atrasado = !s.quitado && a.vencimento && a.vencimento < hoje;
+    return `
+      <li class="item" data-editar-acerto="${a.id}">
+        <span class="cat-ic ${a.tipo === "receber" ? "receber" : "pagar"}">${svg(a.tipo === "receber" ? "entrada" : "saida")}</span>
+        <span class="txt"><b>${esc(a.descricao || (a.tipo === "receber" ? "A receber" : "A pagar"))}</b>
+          <small>${a.tipo === "receber" ? "vai receber" : "vai pagar"} · desde ${dataCurta(a.data)}${a.vencimento ? ` · <span class="${atrasado ? "neg" : ""}">combinado para ${dataCurta(a.vencimento)}</span>` : ""}${s.pago && !s.quitado ? ` · já ${a.tipo === "receber" ? "recebeu" : "pagou"} ${dinheiro(s.pago)}` : ""}</small></span>
+        <span class="val-duplo"><b class="${a.tipo === "receber" ? "pos" : "neg"}">${dinheiro(s.quitado ? a.valor : s.restante)}</b>
+          ${s.quitado ? `<small>quitado</small>` : `<button class="btn pequeno" data-baixa="${a.id}">${a.tipo === "receber" ? "Recebi" : "Paguei"}</button>`}</span>
+      </li>`;
+  };
+  return `
+    <div class="cab-pagina"><h1>A receber e a pagar</h1>
+      <div class="atalhos pequenos">
+        <button class="btn atalho receita" data-novo-acerto="receber">${svg("entrada")} A receber</button>
+        <button class="btn atalho despesa" data-novo-acerto="pagar">${svg("saida")} A pagar</button>
+      </div>
+    </div>
+    <section class="totais-lista">
+      <div><span>Vocês vão receber</span><b class="pos">${dinheiro(t.receber)}</b></div>
+      <div><span>Vocês vão pagar</span><b class="neg">${dinheiro(t.pagar)}</b></div>
+    </section>
+    ${abertos.length ? Object.entries(porPessoa).sort((a, b) => a[0].localeCompare(b[0])).map(([nome, itens]) => {
+      const liq = itens.reduce((s, a) => s + (a.tipo === "receber" ? 1 : -1) * situacaoAcerto(a).restante, 0);
+      return `<h3 class="dia pessoa-cab"><span>${esc(nome)}</span><span class="${liq >= 0 ? "pos" : "neg"}">${liq >= 0 ? "a receber" : "a pagar"} ${dinheiro(Math.abs(liq))}</span></h3>
+        <ul class="lista">${itens.map(item).join("")}</ul>`;
+    }).join("") : `<section class="painel"><p class="vazio">Nada pendente com outras pessoas.</p>
+      <p class="sub">Anote aqui dinheiro emprestado, valores que alguém deve a vocês ou que vocês devem a alguém. Se o dinheiro saiu ou entrou numa conta, o app ajusta o saldo dela sem contar como receita ou despesa do mês.</p></section>`}
+    ${quitados.length ? `
+      <button class="btn link" id="ver-quitados">${estado.verAcertos ? "Esconder" : "Mostrar"} quitados (${quitados.length})</button>
+      ${estado.verAcertos ? `<ul class="lista">${quitados.sort((a, b) => (b.data || "").localeCompare(a.data || "")).map((a) => item(a).replace('class="item"', 'class="item paga"')).join("")}</ul>` : ""}` : ""}`;
+}
+
 // ---------- Eventos das telas extras ----------
 
 export function ligarExtras(el, nav) {
@@ -503,6 +640,15 @@ export function ligarExtras(el, nav) {
 
   // avisos
   on("[data-abrir-avisos]", () => abrirAvisos());
+
+  // parcelamentos
+  on("[data-ver-parcelas]", (b) => { estado.verParcelas = b.dataset.verParcelas; nav.render(); });
+
+  // a receber e a pagar
+  on("[data-novo-acerto]", (b) => formAcerto(null, b.dataset.novoAcerto));
+  on("[data-editar-acerto]", (li) => formAcerto(estado.acertos.find((a) => a.id === li.dataset.editarAcerto)));
+  on("[data-baixa]", (b, ev) => { ev.stopPropagation(); formBaixa(estado.acertos.find((a) => a.id === b.dataset.baixa)); });
+  $("#ver-quitados", el)?.addEventListener("click", () => { estado.verAcertos = !estado.verAcertos; nav.render(); });
 
   // importação
   const impConta = $("#imp-conta", el);

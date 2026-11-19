@@ -8,6 +8,7 @@ import { $$, esc, abrirModal, fecharModal, confirmar, toast, erroMsg } from "./u
 import { svg, ICONES_CATEGORIA } from "./icones.js";
 import {
   moeda, paraCentavos, hojeISO, mesAtual, somarMeses, nomeMes, competencia, gerarLancamentos, grupoDe, estaPago, normalizarTag,
+  saldosDasContas, situacaoAcerto, dataCurta,
 } from "./financas.js";
 
 const opcoesContas = (lista, selecionada, vazia = "") => `
@@ -21,6 +22,7 @@ const opcoesContas = (lista, selecionada, vazia = "") => `
 
 // l: lançamento existente (edição). pre: valores iniciais para um novo.
 export function formLancamento(l, pre = {}) {
+  if (l?.tipo === "ajuste") return verAjuste(l);
   const novo = !l;
   const v = l || pre;
   const tipo = v.tipo || "despesa";
@@ -653,4 +655,195 @@ export function guardarNaMeta(mt) {
 // Resgatar da meta = receita ligada à meta.
 export function resgatarDaMeta(mt) {
   formLancamento(null, { tipo: "receita", categoria: "Investimentos", metaId: mt.id, descricao: `Resgate: ${mt.nome}`, pago: true });
+}
+
+// ---------- Conferir saldo com o banco (ajuste de saldo) ----------
+
+// Lançamento do tipo "ajuste": mexe só no saldo da conta (não entra em receitas/despesas). valor tem sinal.
+async function criarAjuste({ contaId, valor, data, descricao, acertoId = null }) {
+  const c = conta(contaId);
+  await store.add("lancamentos", {
+    tipo: "ajuste", valor, descricao, categoria: null, subcategoria: null, grupo: null, pessoalDe: null, tags: [], metaId: null,
+    data, competencia: data.slice(0, 7), pessoa: c?.dono || estado.eu.id, contaId, contaDestinoId: null, faturaDe: null,
+    obs: "", fixaId: null, parcela: null, totalParcelas: null, recorrencia: null, grupoId: null, pago: true, acertoId,
+    criadoPor: estado.eu.id, criadoEm: Date.now(),
+  });
+}
+
+const textoComSinal = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + moeda(Math.abs(v));
+const lerValorComSinal = (t) => {
+  const s = String(t || "").trim();
+  const v = paraCentavos(s.replace(/^-/, ""));
+  return Number.isNaN(v) ? NaN : s.startsWith("-") ? -v : v;
+};
+
+export function formConferirSaldo(c) {
+  const saldo = saldosDasContas(estado.contas, estado.lancamentos)[c.id]?.atual || 0;
+  const pendentes = estado.lancamentos.filter((l) => !estaPago(l) && (l.contaId === c.id || l.contaDestinoId === c.id));
+  abrirModal(`
+    <form autocomplete="off">
+      <h2>Conferir saldo · ${esc(c.nome)}</h2>
+      <div class="linha-simples"><span>Saldo no app</span><b>${moeda(saldo)}</b></div>
+      ${c.conferidoEm ? `<p class="sub">Última conferência: ${dataCurta(c.conferidoEm)}.</p>` : ""}
+      <label>Saldo que aparece no banco agora <small>(use o sinal de menos se estiver negativo)</small>
+        <input name="saldoBanco" inputmode="decimal" required placeholder="0,00">
+      </label>
+      <label>Data <input type="date" name="data" value="${hojeISO()}" required></label>
+      <p class="info-diferenca dica" hidden></p>
+      ${pendentes.length ? `<p class="sub">Atenção: há ${pendentes.length} lançamento(s) pendente(s) nesta conta. Se algum já saiu do banco, marque como pago antes de ajustar.</p>` : ""}
+      <div class="acoes">
+        <button type="button" class="btn link" data-fechar>Cancelar</button>
+        <button type="submit" class="btn primario">Conferir</button>
+      </div>
+    </form>`, (m) => {
+    const f = m.querySelector("form");
+    const info = m.querySelector(".info-diferenca");
+    const dif = () => lerValorComSinal(f.saldoBanco.value) - saldo;
+    f.saldoBanco.addEventListener("input", () => {
+      const d = dif();
+      info.hidden = Number.isNaN(d);
+      if (!Number.isNaN(d)) info.textContent = d === 0 ? "O saldo bate com o banco." : `Diferença de ${textoComSinal(d)}. Ao conferir, o app lança um ajuste de saldo com esse valor (não conta como receita nem despesa).`;
+    });
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const d = dif();
+      if (Number.isNaN(d)) return toast("Informe o saldo do banco.");
+      try {
+        if (d !== 0) await criarAjuste({ contaId: c.id, valor: d, data: f.data.value, descricao: "Ajuste de saldo (conferência com o banco)" });
+        await store.update("contas", c.id, { conferidoEm: f.data.value, saldoConferido: lerValorComSinal(f.saldoBanco.value) });
+        fecharModal();
+        toast(d === 0 ? "Saldo conferido: está igual ao banco." : `Saldo ajustado em ${textoComSinal(d)}.`);
+      } catch (err) { toast("Erro: " + erroMsg(err)); }
+    });
+  });
+}
+
+async function verAjuste(l) {
+  const c = conta(l.contaId);
+  const r = await confirmar(`${esc(l.descricao || "Ajuste de saldo")}<br><small>${esc(c?.nome || "")} · ${dataCurta(l.data)} · ${textoComSinal(l.valor)}</small><br><small>Ajustes mexem só no saldo da conta, não em receitas e despesas.</small>`, [
+    { texto: "Excluir este ajuste", valor: "excluir", classe: "perigo" },
+  ]);
+  if (r === "excluir") {
+    await store.remove("lancamentos", l.id);
+    toast("Ajuste excluído.");
+  }
+}
+
+// ---------- A receber e a pagar (pessoas) ----------
+
+const nomesPessoas = () => [...new Set(estado.acertos.map((a) => a.pessoaNome).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+
+export function formAcerto(a, tipoNovo = "receber") {
+  const novo = !a;
+  const tipo = a?.tipo || tipoNovo;
+  abrirModal(`
+    <form autocomplete="off">
+      <h2>${novo ? "Novo registro" : "Editar"}</h2>
+      <div class="segmentado">
+        <label><input type="radio" name="tipo" value="receber" ${tipo === "receber" ? "checked" : ""}><span>Vou receber</span></label>
+        <label><input type="radio" name="tipo" value="pagar" ${tipo === "pagar" ? "checked" : ""}><span>Vou pagar</span></label>
+      </div>
+      <label>Pessoa <input name="pessoaNome" required list="lista-pessoas" placeholder="Ex.: Edson" value="${esc(a?.pessoaNome || "")}"></label>
+      <datalist id="lista-pessoas">${nomesPessoas().map((n) => `<option value="${esc(n)}">`).join("")}</datalist>
+      <label>Descrição <input name="descricao" placeholder="Ex.: empréstimo, parte da viagem, conserto" value="${esc(a?.descricao || "")}"></label>
+      <div class="duas">
+        <label>Valor <input name="valor" inputmode="decimal" required placeholder="0,00" value="${centavosParaTexto(a?.valor)}"></label>
+        <label>Combinado para <small>(opcional)</small><input type="date" name="vencimento" value="${a?.vencimento || ""}"></label>
+      </div>
+      <label>Data <input type="date" name="data" required value="${a?.data || hojeISO()}"></label>
+      ${novo ? `
+      <label><span class="rotulo-conta"></span>
+        <select name="contaId"><option value="">Não mexer no saldo de nenhuma conta</option>${opcoesContas(contasBancarias(), "")}</select>
+      </label>` : ""}
+      <label>Observação <input name="obs" value="${esc(a?.obs || "")}"></label>
+      <div class="acoes">
+        ${novo ? "" : `<button type="button" class="btn perigo" id="excluir">Excluir</button>`}
+        <button type="button" class="btn link" data-fechar>Cancelar</button>
+        <button type="submit" class="btn primario">Salvar</button>
+      </div>
+    </form>`, (m) => {
+    const f = m.querySelector("form");
+    const rotulo = () => {
+      const r = m.querySelector(".rotulo-conta");
+      if (r) r.textContent = f.querySelector("[name=tipo]:checked").value === "receber"
+        ? "Emprestou? De qual conta saiu o dinheiro"
+        : "Pegou emprestado? Em qual conta entrou o dinheiro";
+    };
+    rotulo();
+    $$("[name=tipo]", f).forEach((x) => x.addEventListener("change", rotulo));
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const valor = paraCentavos(f.valor.value);
+      if (!(valor > 0)) return toast("Informe um valor válido.");
+      const dados = {
+        tipo: f.querySelector("[name=tipo]:checked").value,
+        pessoaNome: f.pessoaNome.value.trim(),
+        descricao: f.descricao.value.trim(),
+        valor,
+        data: f.data.value,
+        vencimento: f.vencimento.value || null,
+        obs: f.obs.value.trim(),
+      };
+      try {
+        if (novo) {
+          const id = await store.add("acertos", { ...dados, baixas: [], criadoPor: estado.eu.id, criadoEm: Date.now() });
+          if (f.contaId?.value) {
+            await criarAjuste({
+              contaId: f.contaId.value, valor: dados.tipo === "receber" ? -valor : valor, data: dados.data, acertoId: id,
+              descricao: dados.tipo === "receber" ? `Emprestado para ${dados.pessoaNome}` : `Emprestado de ${dados.pessoaNome}`,
+            });
+          }
+        } else await store.update("acertos", a.id, dados);
+        fecharModal();
+        toast("Salvo.");
+      } catch (err) { toast("Erro: " + erroMsg(err)); }
+    });
+    m.querySelector("#excluir")?.addEventListener("click", async () => {
+      if (await confirmar(`Excluir o registro de ${esc(a.pessoaNome)} (${moeda(a.valor)})? Ajustes de saldo já feitos nas contas continuam.`, [{ texto: "Excluir", valor: true, classe: "perigo" }])) {
+        await store.remove("acertos", a.id);
+        toast("Excluído.");
+      }
+    });
+  });
+}
+
+// Registrar um recebimento/pagamento (total ou parcial) de um valor com uma pessoa.
+export function formBaixa(a) {
+  const { restante } = situacaoAcerto(a);
+  const receber = a.tipo === "receber";
+  abrirModal(`
+    <form autocomplete="off">
+      <h2>${receber ? `Recebi de ${esc(a.pessoaNome)}` : `Paguei ${esc(a.pessoaNome)}`}</h2>
+      <p class="sub">${esc(a.descricao || "")} · falta ${moeda(restante)}</p>
+      <div class="duas">
+        <label>Valor <input name="valor" inputmode="decimal" required value="${centavosParaTexto(restante)}"></label>
+        <label>Data <input type="date" name="data" required value="${hojeISO()}"></label>
+      </div>
+      <label>${receber ? "Em qual conta entrou" : "De qual conta saiu"}
+        <select name="contaId"><option value="">Não mexer no saldo de nenhuma conta</option>${opcoesContas(contasBancarias(), contasBancarias().find((c) => c.dono === estado.eu.id)?.id || "")}</select>
+      </label>
+      <div class="acoes">
+        <button type="button" class="btn link" data-fechar>Cancelar</button>
+        <button type="submit" class="btn primario">Registrar</button>
+      </div>
+    </form>`, (m) => {
+    const f = m.querySelector("form");
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const valor = paraCentavos(f.valor.value);
+      if (!(valor > 0)) return toast("Informe um valor válido.");
+      if (valor > restante) return toast(`O valor passa do que falta (${moeda(restante)}).`);
+      try {
+        await store.update("acertos", a.id, { baixas: [...(a.baixas || []), { valor, data: f.data.value, contaId: f.contaId.value || null, por: estado.eu.id }] });
+        if (f.contaId.value) {
+          await criarAjuste({
+            contaId: f.contaId.value, valor: receber ? valor : -valor, data: f.data.value, acertoId: a.id,
+            descricao: receber ? `Recebido de ${a.pessoaNome}` : `Pago a ${a.pessoaNome}`,
+          });
+        }
+        fecharModal();
+        toast(valor === restante ? "Quitado." : `Registrado. Ainda falta ${moeda(restante - valor)}.`);
+      } catch (err) { toast("Erro: " + erroMsg(err)); }
+    });
+  });
 }
