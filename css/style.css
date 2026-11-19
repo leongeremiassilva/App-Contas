@@ -556,3 +556,40 @@ label.check span small { font-size: 12px; }
 .lateral nav { overflow-y: auto; min-height: 0; }
 .lateral { overflow: hidden; }
 .linha-simples b { white-space: nowrap; }
+
+/* ---------- Dívidas ---------- */
+.saldo-geral.divida { border-left-color: #7c3aed; }
+.barra-composicao { display: flex; gap: 2px; height: 10px; border-radius: 5px; overflow: hidden; margin: 10px 0 8px; background: var(--fundo); }
+.barra-composicao.grande { height: 16px; border-radius: 8px; }
+.barra-composicao span { display: block; height: 100%; min-width: 3px; }
+.legenda-divida { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.legenda-divida li { display: flex; align-items: center; gap: 8px; }
+.legenda-divida li b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.legenda-divida i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.destaque-divida { border-left: 5px solid #7c3aed; }
+.valor-divida { display: block; font-size: 30px; font-variant-numeric: tabular-nums; margin: 2px 0 12px; }
+.indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.indicadores div { background: var(--fundo); border-radius: 10px; padding: 8px 12px; display: grid; }
+.indicadores span { font-size: 12px; color: var(--suave); }
+.indicadores b { font-variant-numeric: tabular-nums; }
+.comprometimento { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; font-size: 14px; background: var(--fundo); }
+.comprometimento.ok { background: var(--verde-claro); }
+.comprometimento.atencao { background: #fffbeb; color: #92400e; }
+.comprometimento.estourou { background: #fef2f2; color: #991b1b; }
+:root[data-tema="escuro"] .comprometimento.atencao { background: #3a2a0a; color: #fde68a; }
+:root[data-tema="escuro"] .comprometimento.estourou { background: #3b1111; color: #fecaca; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) .comprometimento.atencao { background: #3a2a0a; color: #fde68a; }
+  :root:not([data-tema="claro"]) .comprometimento.estourou { background: #3b1111; color: #fecaca; }
+}
+.linha-composicao { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--borda); font-variant-numeric: tabular-nums; }
+.linha-composicao .pct { color: var(--suave); font-size: 13px; }
+.divida-item .txt small + small { margin-top: 1px; }
+@media (min-width: 900px) {
+  .lateral { padding: 14px 12px; }
+  .marca { padding-bottom: 12px; margin-bottom: 8px; }
+  .lateral nav { gap: 2px; flex: 1 1 auto; }
+  .lateral nav button { padding: 8px 12px; font-size: 14.5px; }
+  .lateral-rodape { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--borda); gap: 4px; }
+  .linha-lateral { padding: 7px 12px; }
+}

@@ -3,7 +3,7 @@ import { pessoas } from "./config.js";
 import { moeda, mesAtual, CATEGORIAS_PADRAO } from "./financas.js";
 import { svg, existeIcone, ICONE_GRUPO } from "./icones.js";
 
-export const COLECOES = ["lancamentos", "contas", "categorias", "grupos", "fixas", "metas", "acertos", "config"];
+export const COLECOES = ["lancamentos", "contas", "categorias", "grupos", "fixas", "metas", "acertos", "emprestimos", "config"];
 export const FILTRO_VAZIO = { grupo: "", pessoa: "", categoria: "", conta: "", status: "", tag: "", busca: "" };
 
 export const estado = {
@@ -16,6 +16,7 @@ export const estado = {
   fixas: [],
   metas: [],
   acertos: [],
+  emprestimos: [],
   config: [],
   carregado: Object.fromEntries(COLECOES.map((c) => [c, false])),
   mes: mesAtual(),

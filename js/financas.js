@@ -287,7 +287,7 @@ export function faturaDoCartao(cartao, mes, lancamentos, hoje = hojeISO()) {
 }
 
 // O que falta pagar no mês: lançamentos pendentes, contas fixas não pagas e faturas em aberto.
-export function contasAPagar({ lancamentos, fixas, contas, mes, hoje = hojeISO() }) {
+export function contasAPagar({ lancamentos, fixas, contas, mes, hoje = hojeISO(), emprestimos = [] }) {
   const itens = [];
   for (const l of lancamentos) {
     if (l.tipo !== "despesa" || estaPago(l) || l.competencia !== mes) continue;
@@ -300,6 +300,10 @@ export function contasAPagar({ lancamentos, fixas, contas, mes, hoje = hojeISO()
   for (const c of contas.filter((x) => x.tipo === "cartao")) {
     const fat = faturaDoCartao(c, mes, lancamentos, hoje);
     if (fat.falta > 0) itens.push({ tipo: "fatura", id: c.id, nome: `Fatura ${c.nome}`, valor: fat.falta, vence: fat.vencimento, fatura: fat });
+  }
+  // prestações de financiamentos/empréstimos que não estão ligados a uma conta fixa
+  for (const e of prestacoesPendentesNoMes(emprestimos, lancamentos, mes)) {
+    itens.push({ tipo: "emprestimo", id: e.id, nome: e.nome, valor: e.valorParcela || 0, vence: dataDoMes(mes, e.dia), emprestimo: e });
   }
   return itens
     .map((i) => ({ ...i, atrasada: i.vence < hoje }))
@@ -341,10 +345,10 @@ export function somarDias(iso, n) {
 }
 
 // Contas pendentes atrasadas ou que vencem nos próximos "dias" (olha o mês atual e o seguinte).
-export function avisosDeVencimento({ lancamentos, fixas, contas, hoje = hojeISO(), dias = 5 }) {
+export function avisosDeVencimento({ lancamentos, fixas, contas, hoje = hojeISO(), dias = 5, emprestimos = [] }) {
   const limite = somarDias(hoje, dias);
   const mes = hoje.slice(0, 7);
-  const itens = [...contasAPagar({ lancamentos, fixas, contas, mes, hoje }), ...contasAPagar({ lancamentos, fixas, contas, mes: somarMeses(mes, 1), hoje })];
+  const itens = [...contasAPagar({ lancamentos, fixas, contas, mes, hoje, emprestimos }), ...contasAPagar({ lancamentos, fixas, contas, mes: somarMeses(mes, 1), hoje, emprestimos })];
   return itens.filter((i) => i.vence <= limite).map((i) => ({ ...i, mes: i.vence.slice(0, 7), venceHoje: i.vence === hoje }));
 }
 
@@ -419,16 +423,16 @@ export const normalizarTag = (t) => String(t || "").trim().replace(/^#/, "").rep
 // ---------- Quanto ainda posso gastar ----------
 
 // Receita do mês − o que já foi lançado − contas fixas ainda não lançadas − o que falta guardar no grupo Poupar.
-export function quantoPossoGastar(r, mes, hoje = hojeISO()) {
+export function quantoPossoGastar(r, mes, hoje = hojeISO(), prestacoesPendentes = 0) {
   const poupar = r.grupos.find((g) => g.grupo.id === "poupar");
   const reservaPoupar = poupar ? Math.max(0, poupar.meta - poupar.gasto) : 0;
-  const disponivel = r.receitas - r.despesas - r.fixas.pendente - reservaPoupar;
+  const disponivel = r.receitas - r.despesas - r.fixas.pendente - prestacoesPendentes - reservaPoupar;
   const [a, m] = mes.split("-").map(Number);
   const ultimo = new Date(a, m, 0).getDate();
   const mesHoje = hoje.slice(0, 7);
   const diasRestantes = mes === mesHoje ? ultimo - Number(hoje.slice(8, 10)) + 1 : mes > mesHoje ? ultimo : 0;
   return {
-    disponivel, reservaPoupar, fixasPendentes: r.fixas.pendente, receitas: r.receitas, despesas: r.despesas,
+    disponivel, reservaPoupar, fixasPendentes: r.fixas.pendente, prestacoesPendentes, receitas: r.receitas, despesas: r.despesas,
     diasRestantes, porDia: diasRestantes && disponivel > 0 ? Math.floor(disponivel / diasRestantes) : 0,
   };
 }
@@ -471,4 +475,139 @@ export function situacaoAcerto(a) {
   const pago = (a.baixas || []).reduce((s, b) => s + b.valor, 0);
   const restante = Math.max(0, (a.valor || 0) - pago);
   return { pago, restante, quitado: restante === 0 };
+}
+
+// ---------- Financiamentos e empréstimos ----------
+
+export const TIPOS_EMPRESTIMO = {
+  imovel: "Financiamento de imóvel",
+  veiculo: "Financiamento de veículo",
+  emprestimo: "Empréstimo (pessoal, consignado)",
+  consorcio: "Consórcio",
+  outro: "Outro",
+};
+
+// Lançamentos que contam como parcela paga deste financiamento: ligados direto (emprestimoId) ou,
+// se ele estiver ligado a uma conta fixa, os pagamentos dessa conta fixa feitos depois do cadastro.
+export function pagamentosDoEmprestimo(e, lancamentos) {
+  return lancamentos.filter((l) => l.tipo === "despesa" && estaPago(l) &&
+    (l.emprestimoId === e.id || (e.fixaId && l.fixaId === e.fixaId && (l.criadoEm || 0) >= (e.criadoEm || 0))));
+}
+
+export function situacaoEmprestimo(e, lancamentos, mesRef = mesAtual()) {
+  const pagamentos = pagamentosDoEmprestimo(e, lancamentos);
+  const total = Number(e.totalParcelas) || 0;
+  const pagas = Math.min(total, (Number(e.parcelasPagasInicial) || 0) + pagamentos.length);
+  const restantes = Math.max(0, total - pagas);
+  const pagaNoMes = pagamentos.some((l) => l.competencia === mesRef);
+  const proxima = pagaNoMes ? somarMeses(mesRef, 1) : mesRef;
+  return {
+    total, pagas, restantes, pagaNoMes, pagamentos,
+    quitado: total > 0 && restantes === 0,
+    valorRestante: restantes * (e.valorParcela || 0),
+    proximaParcela: restantes ? proxima : null,
+    ultimaParcela: restantes ? somarMeses(proxima, restantes - 1) : null,
+    pct: total ? pagas / total : 0,
+  };
+}
+
+// Prestações do mês ainda não pagas (só de financiamentos que NÃO estão ligados a conta fixa,
+// porque esses já aparecem como conta fixa).
+export function prestacoesPendentesNoMes(emprestimos, lancamentos, mes) {
+  return emprestimos.filter((e) => {
+    if (e.fixaId || e.ativo === false) return false;
+    const criado = e.criadoEm ? new Date(e.criadoEm).toISOString().slice(0, 7) : "0000-00";
+    if (mes < criado) return false;
+    const s = situacaoEmprestimo(e, lancamentos, mes);
+    return !s.quitado && !s.pagaNoMes;
+  });
+}
+
+// ---------- Panorama das dívidas ----------
+
+const ordenar = (lista) => lista.sort((a, b) => b.valor - a.valor);
+
+export function panoramaDividas({ lancamentos, contas, emprestimos, acertos, fixas, hoje = hojeISO(), meses = 12 }) {
+  const mesHoje = hoje.slice(0, 7);
+  const limitePassado = somarMeses(mesHoje, -3);
+  const projecao = Object.fromEntries(Array.from({ length: meses }, (_, i) => [somarMeses(mesHoje, i), 0]));
+  const projetar = (mes, v) => { const m = mes < mesHoje ? mesHoje : mes; if (m in projecao) projecao[m] += v; };
+
+  // 1. Cartões: faturas sem pagamento (dos últimos 3 meses em diante, incluindo parcelas futuras)
+  const cartoes = contas.filter((c) => c.tipo === "cartao").map((c) => {
+    const competencias = [...new Set(lancamentos.filter((l) => l.contaId === c.id && ehMovimento(l)).map((l) => l.competencia))]
+      .filter((m) => m >= limitePassado).sort();
+    const faturas = competencias.map((m) => faturaDoCartao(c, m, lancamentos, hoje)).filter((f) => f.falta > 0);
+    faturas.forEach((f) => projetar(f.mes, f.falta));
+    return { conta: c, faturas, valor: faturas.reduce((s, f) => s + f.falta, 0) };
+  }).filter((x) => x.valor > 0);
+
+  // 2. Financiamentos e empréstimos
+  const financiamentos = emprestimos.filter((e) => e.ativo !== false).map((e) => {
+    const s = situacaoEmprestimo(e, lancamentos, mesHoje);
+    for (let i = 0; i < s.restantes; i++) projetar(somarMeses(s.proximaParcela, i), e.valorParcela || 0);
+    return { emprestimo: e, ...s, valor: s.valorRestante };
+  }).filter((x) => !x.quitado);
+
+  // 3. Compras parceladas fora do cartão (boleto, carnê) ainda pendentes
+  const contaEhCartao = (id) => contas.find((c) => c.id === id)?.tipo === "cartao";
+  const parcPend = lancamentos.filter((l) => l.tipo === "despesa" && l.recorrencia === "parcelado" && !estaPago(l) && !contaEhCartao(l.contaId));
+  const grupos = {};
+  for (const l of parcPend) (grupos[l.grupoId || l.id] ||= []).push(l);
+  const parcelados = Object.values(grupos).map((ps) => {
+    ps.sort((a, b) => a.competencia.localeCompare(b.competencia));
+    ps.forEach((p) => projetar(p.competencia, p.valor));
+    return { descricao: ps[0].descricao || ps[0].categoria, parcelas: ps, valor: ps.reduce((s, p) => s + p.valor, 0), fim: ps.at(-1).competencia, primeira: ps[0] };
+  });
+
+  // 4. Contas no negativo (cheque especial)
+  const saldos = saldosDasContas(contas, lancamentos);
+  const chequeEspecial = contas.filter((c) => c.tipo !== "cartao" && saldos[c.id]?.atual < 0)
+    .map((c) => ({ conta: c, valor: -saldos[c.id].atual }));
+  chequeEspecial.forEach((x) => projetar(mesHoje, x.valor));
+
+  // 5. O que vocês devem a outras pessoas
+  const pessoas = acertos.filter((a) => a.tipo === "pagar").map((a) => ({ acerto: a, valor: situacaoAcerto(a).restante })).filter((x) => x.valor > 0);
+  pessoas.forEach((x) => projetar(x.acerto.vencimento ? x.acerto.vencimento.slice(0, 7) : mesHoje, x.valor));
+
+  // 6. Contas vencidas e não pagas (lançamentos pendentes, fora do cartão e fora de parcelamentos)
+  const vencidas = lancamentos.filter((l) => l.tipo === "despesa" && !estaPago(l) && l.recorrencia !== "parcelado" && !contaEhCartao(l.contaId) && l.data && l.data < hoje)
+    .map((l) => ({ lanc: l, valor: l.valor }));
+  vencidas.forEach((x) => projetar(mesHoje, x.valor));
+
+  const grupo = (id, nome, itens) => ({ id, nome, itens: ordenar(itens), valor: itens.reduce((s, x) => s + x.valor, 0) });
+  const composicao = [
+    grupo("financiamentos", "Financiamentos e empréstimos", financiamentos),
+    grupo("cartoes", "Faturas de cartão", cartoes),
+    grupo("parcelados", "Parcelas fora do cartão", parcelados),
+    grupo("cheque", "Contas no negativo (cheque especial)", chequeEspecial),
+    grupo("pessoas", "Devendo a outras pessoas", pessoas),
+    grupo("vencidas", "Contas vencidas não pagas", vencidas),
+  ];
+  const total = composicao.reduce((s, g) => s + g.valor, 0);
+
+  // Renda média dos últimos 3 meses com receita, para o comprometimento.
+  const receitasPorMes = {};
+  for (const l of lancamentos) if (l.tipo === "receita" && l.competencia <= mesHoje && l.competencia >= somarMeses(mesHoje, -3)) receitasPorMes[l.competencia] = (receitasPorMes[l.competencia] || 0) + l.valor;
+  const mesesComReceita = Object.values(receitasPorMes).filter((v) => v > 0);
+  const rendaMedia = mesesComReceita.length ? Math.round(mesesComReceita.reduce((a, b) => a + b, 0) / mesesComReceita.length) : 0;
+
+  // Prestações fixas por mês: parcelas de compras (cartão ou não) + financiamentos, no mês atual.
+  const parcelasMes = lancamentos.filter((l) => l.tipo === "despesa" && l.recorrencia === "parcelado" && l.competencia === mesHoje).reduce((s, l) => s + l.valor, 0);
+  const prestacoesMes = emprestimos.filter((e) => {
+    if (e.ativo === false) return false;
+    const st = situacaoEmprestimo(e, lancamentos, mesHoje);
+    return st.restantes > 0 || st.pagaNoMes;
+  }).reduce((s, e) => s + (e.valorParcela || 0), 0);
+  const compromissoMensal = parcelasMes + prestacoesMes;
+
+  const listaProjecao = Object.entries(projecao).map(([mes, valor]) => ({ mes, valor }));
+  const ultimoComDivida = [...listaProjecao].reverse().find((x) => x.valor > 0)?.mes || null;
+  const fimFinanciamentos = financiamentos.map((f) => f.ultimaParcela).filter(Boolean).sort().at(-1) || null;
+
+  return {
+    total, composicao, projecao: listaProjecao, rendaMedia, compromissoMensal,
+    comprometimento: rendaMedia ? compromissoMensal / rendaMedia : null,
+    livreEm: [ultimoComDivida, fimFinanciamentos].filter(Boolean).sort().at(-1) || null,
+  };
 }

@@ -8,7 +8,7 @@ import { $$, esc, abrirModal, fecharModal, confirmar, toast, erroMsg } from "./u
 import { svg, ICONES_CATEGORIA } from "./icones.js";
 import {
   moeda, paraCentavos, hojeISO, mesAtual, somarMeses, nomeMes, competencia, gerarLancamentos, grupoDe, estaPago, normalizarTag,
-  saldosDasContas, situacaoAcerto, dataCurta,
+  saldosDasContas, situacaoAcerto, dataCurta, TIPOS_EMPRESTIMO, situacaoEmprestimo,
 } from "./financas.js";
 
 const opcoesContas = (lista, selecionada, vazia = "") => `
@@ -36,6 +36,7 @@ export function formLancamento(l, pre = {}) {
   const pagoInicial = l ? estaPago(l) : v.pago ?? dataInicial <= hojeISO();
   const titulo = !novo ? "Editar lançamento"
     : fixa ? `Pagar ${esc(fixa.nome)}`
+    : v.emprestimoId ? `Pagar prestação`
     : v.faturaDe ? "Pagar fatura"
     : { despesa: "Nova despesa", receita: "Nova receita", transferencia: "Nova transferência" }[tipo];
   const mesesFatura = [-2, -1, 0, 1, 2].map((n) => somarMeses(v.faturaDe || estado.mes, n));
@@ -82,7 +83,7 @@ export function formLancamento(l, pre = {}) {
 
       <label class="check so-pago"><input type="checkbox" name="pago" ${pagoInicial ? "checked" : ""}> <span class="rotulo-pago">Pago</span></label>
 
-      ${novo && !fixa ? `
+      ${novo && !fixa && !v.emprestimoId ? `
       <label class="nao-transf">Repetição
         <select name="modo">
           <option value="unico">Só esta vez</option>
@@ -187,14 +188,14 @@ export function formLancamento(l, pre = {}) {
         atualizar();
       }
     });
-    f.addEventListener("submit", (e) => { e.preventDefault(); salvarLancamento(f, l, doGrupo, v.fixaId, v.mesFixa); });
+    f.addEventListener("submit", (e) => { e.preventDefault(); salvarLancamento(f, l, doGrupo, v.fixaId, v.mesFixa, v.emprestimoId); });
     m.querySelector("#excluir")?.addEventListener("click", () => excluirLancamento(l, doGrupo));
   });
 }
 
 const lerTags = (texto) => [...new Set(String(texto || "").split(",").map(normalizarTag).filter(Boolean))];
 
-async function salvarLancamento(f, original, doGrupo, fixaId, mesFixa) {
+async function salvarLancamento(f, original, doGrupo, fixaId, mesFixa, emprestimoId) {
   const valor = paraCentavos(f.valor.value);
   if (!(valor > 0)) return toast("Informe um valor válido.");
   const tipo = f.querySelector("[name=tipo]:checked").value;
@@ -223,6 +224,7 @@ async function salvarLancamento(f, original, doGrupo, fixaId, mesFixa) {
       faturaDe: null,
       obs: f.obs.value.trim(),
       fixaId: fixaId || original?.fixaId || null,
+      emprestimoId: emprestimoId || original?.emprestimoId || null,
       pago: noCartao ? true : f.pago.checked,
     };
     if (!original) {
@@ -233,10 +235,10 @@ async function salvarLancamento(f, original, doGrupo, fixaId, mesFixa) {
       );
       // repetições em meses futuros ficam pendentes (menos no cartão, que vai na fatura)
       lista.forEach((x, i) => { if (i > 0 && !noCartao) x.pago = base.pago && x.competencia <= mesAtual(); });
-      if (fixaId) lista[0].competencia = mesFixa || estado.mes; // conta fixa vale no mês dela
+      if (fixaId || emprestimoId) lista[0].competencia = mesFixa || estado.mes; // conta fixa / prestação vale no mês dela
       await store.addMany("lancamentos", lista);
       fecharModal();
-      toast(fixaId ? "Pagamento registrado." : lista.length > 1 ? `${lista.length} lançamentos criados.` : "Lançamento salvo.");
+      toast(fixaId || emprestimoId ? "Pagamento registrado." : lista.length > 1 ? `${lista.length} lançamentos criados.` : "Lançamento salvo.");
       return;
     }
     let escopo = "este";
@@ -845,5 +847,102 @@ export function formBaixa(a) {
         toast(valor === restante ? "Quitado." : `Registrado. Ainda falta ${moeda(restante - valor)}.`);
       } catch (err) { toast("Erro: " + erroMsg(err)); }
     });
+  });
+}
+
+// ---------- Financiamentos e empréstimos ----------
+
+const CATEGORIA_EMPRESTIMO = {
+  imovel: ["Casa", "Financiamento / aluguel"],
+  veiculo: ["Transporte", null],
+  emprestimo: ["Dívidas e empréstimos", "Empréstimo"],
+  consorcio: ["Dívidas e empréstimos", null],
+  outro: ["Dívidas e empréstimos", null],
+};
+
+export function formEmprestimo(e) {
+  const novo = !e;
+  const sugestaoFixa = novo ? estado.fixas.find((f) => /financiamento/i.test(f.nome) && !estado.emprestimos.some((x) => x.fixaId === f.id)) : null;
+  abrirModal(`
+    <form autocomplete="off">
+      <h2>${novo ? "Novo financiamento ou empréstimo" : "Editar"}</h2>
+      <label>Tipo <select name="tipo">${Object.entries(TIPOS_EMPRESTIMO).map(([k, n]) => `<option value="${k}" ${(e?.tipo || "imovel") === k ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+      <div class="duas">
+        <label>Nome <input name="nome" required placeholder="Ex.: Financiamento da casa" value="${esc(e?.nome || "")}"></label>
+        <label>Banco / credor <input name="credor" placeholder="Ex.: Caixa" value="${esc(e?.credor || "")}"></label>
+      </div>
+      <div class="duas">
+        <label>Valor da parcela <input name="valorParcela" inputmode="decimal" required placeholder="0,00" value="${centavosParaTexto(e?.valorParcela ?? sugestaoFixa?.valor)}"></label>
+        <label>Dia do vencimento <input type="number" name="dia" min="1" max="31" value="${e?.dia || sugestaoFixa?.dia || ""}"></label>
+      </div>
+      <div class="duas">
+        <label>Total de parcelas <input type="number" name="totalParcelas" min="1" max="600" required value="${e?.totalParcelas || ""}"></label>
+        <label>Parcelas já pagas <small>(até hoje, antes de cadastrar)</small><input type="number" name="parcelasPagasInicial" min="0" max="600" value="${e?.parcelasPagasInicial ?? ""}"></label>
+      </div>
+      <label>Saldo devedor <small>(opcional: quanto o banco diz que falta para quitar)</small>
+        <input name="saldoDevedor" inputmode="decimal" placeholder="0,00" value="${centavosParaTexto(e?.saldoDevedor)}">
+      </label>
+      <label>Pago pela conta fixa <small>(se ele já está na lista de contas fixas, ligue aqui para não aparecer duas vezes)</small>
+        <select name="fixaId"><option value="">Não está nas contas fixas</option>
+          ${estado.fixas.map((f) => `<option value="${f.id}" ${(e ? e.fixaId : sugestaoFixa?.id) === f.id ? "selected" : ""}>${esc(f.nome)}</option>`).join("")}
+        </select>
+      </label>
+      <label>Sai de qual conta <small>(opcional)</small>
+        <select name="contaId"><option value="">—</option>${opcoesContas(contasBancarias(), e?.contaId || "")}</select>
+      </label>
+      ${novo ? "" : `<label class="check"><input type="checkbox" name="ativo" ${e.ativo === false ? "" : "checked"}><span>Ativo <small>(desmarque se foi quitado ou renegociado)</small></span></label>`}
+      <div class="acoes">
+        ${novo ? "" : `<button type="button" class="btn perigo" id="excluir">Excluir</button>`}
+        <button type="button" class="btn link" data-fechar>Cancelar</button>
+        <button type="submit" class="btn primario">Salvar</button>
+      </div>
+    </form>`, (m) => {
+    const f = m.querySelector("form");
+    f.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const valorParcela = paraCentavos(f.valorParcela.value);
+      if (!(valorParcela > 0)) return toast("Informe o valor da parcela.");
+      const total = Number(f.totalParcelas.value);
+      const pagas = Number(f.parcelasPagasInicial.value) || 0;
+      if (pagas > total) return toast("Parcelas pagas não pode ser maior que o total.");
+      const [categoria, subcategoria] = CATEGORIA_EMPRESTIMO[f.tipo.value];
+      const dados = {
+        tipo: f.tipo.value, nome: f.nome.value.trim(), credor: f.credor.value.trim(), valorParcela,
+        dia: Number(f.dia.value) || null, totalParcelas: total, parcelasPagasInicial: pagas,
+        saldoDevedor: f.saldoDevedor.value.trim() ? paraCentavos(f.saldoDevedor.value) || null : null,
+        fixaId: f.fixaId.value || null, contaId: f.contaId.value || null, categoria, subcategoria,
+        ativo: f.ativo ? f.ativo.checked : true,
+      };
+      try {
+        if (novo) await store.add("emprestimos", { ...dados, criadoEm: Date.now(), criadoPor: estado.eu.id });
+        else await store.update("emprestimos", e.id, dados);
+        fecharModal();
+        toast("Salvo.");
+      } catch (err) { toast("Erro: " + erroMsg(err)); }
+    });
+    m.querySelector("#excluir")?.addEventListener("click", async () => {
+      if (await confirmar(`Excluir "${esc(e.nome)}"? Os pagamentos já lançados continuam nos lançamentos.`, [{ texto: "Excluir", valor: true, classe: "perigo" }])) {
+        await store.remove("emprestimos", e.id);
+        fecharModal();
+        toast("Excluído.");
+      }
+    });
+  });
+}
+
+// Registrar o pagamento da prestação do mês.
+export function pagarPrestacao(e, mes = estado.mes) {
+  if (e.fixaId) {
+    const fixa = estado.fixas.find((f) => f.id === e.fixaId);
+    if (fixa) return pagarFixa(fixa, mes);
+  }
+  const s = situacaoEmprestimo(e, estado.lancamentos, mes);
+  const hoje = hojeISO();
+  const dia = String(Math.min(e.dia || 1, 28)).padStart(2, "0");
+  formLancamento(null, {
+    tipo: "despesa", valor: e.valorParcela, descricao: `${e.nome} (parcela ${s.pagas + 1}/${s.total})`,
+    categoria: e.categoria || "Dívidas e empréstimos", subcategoria: e.subcategoria || null, grupo: "fixos",
+    contaId: e.contaId || undefined, data: hoje.slice(0, 7) === mes || hoje < `${mes}-${dia}` ? hoje : `${mes}-${dia}`,
+    emprestimoId: e.id, mesFixa: mes, pago: true,
   });
 }

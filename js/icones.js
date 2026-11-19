@@ -38,6 +38,7 @@ const P = {
   conferir: '<circle cx="10.5" cy="10.5" r="7"/><path d="m20.5 20.5-4.8-4.8M7.5 10.5l2 2 3.5-3.5"/>',
   pessoas: '<circle cx="8" cy="8" r="3.2"/><circle cx="16.5" cy="9.5" r="2.7"/><path d="M2.5 19.5a5.5 5.5 0 0 1 11 0M13.5 15.2a4.6 4.6 0 0 1 8 4.3"/>',
   carteiraMais: '<path d="M12 3v18M7.5 7.5h6.5a3 3 0 0 1 0 6H9.5a3 3 0 0 0 0 6H17"/>',
+  queda: '<path d="m3 7 6 6 4-4 8 8"/><path d="M15 17h6v-6"/>',
   fechar: '<path d="M6 6l12 12M18 6 6 18"/>',
   // grupos
   fixos: '<path d="M9 3h6l-.8 5.5L18 12H6l3.8-3.5z"/><path d="M12 12v9"/>',

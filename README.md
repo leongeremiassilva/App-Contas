@@ -18,6 +18,7 @@ Funciona nos moldes do Organizze, adaptado ao jeito do casal:
 - **Quanto ainda posso gastar** no mês (e por dia), descontando contas fixas e o que falta guardar.
 - **Conferir saldo com o banco**: se não bater, o app lança um ajuste de saldo.
 - **A receber e a pagar** de outras pessoas, com pagamentos parciais.
+- **Dívidas**: total de tudo que ainda vão pagar, de onde vem, quanto vence em cada mês, quanto da renda está comprometido e cadastro de financiamentos e empréstimos com parcelas restantes.
 - Categorias padrão do Organizze. Exportação em CSV. Menu lateral no computador e barra inferior no celular; instalável na tela inicial.
 
 ## Configuração (feita uma vez)

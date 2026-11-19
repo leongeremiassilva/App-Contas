@@ -10,9 +10,10 @@ import {
   moeda, hojeISO, nomeMes, dataCurta, somarMeses, mesesAte, serieMensal, despesasPorCategoria, totaisPorTag,
   resumoDoMes, progressoMeta, avisosDeVencimento, faturaDoCartao, competencia, grupoDe, estaPago,
   quantoPossoGastar, parcelamentos, compromissoParcelas, situacaoAcerto,
+  panoramaDividas, prestacoesPendentesNoMes, TIPOS_EMPRESTIMO,
 } from "./financas.js";
 import { pessoas } from "./config.js";
-import { formMeta, guardarNaMeta, resgatarDaMeta, pagarFixa, pagarFatura, formLancamento, formAcerto, formBaixa } from "./formularios.js";
+import { formMeta, guardarNaMeta, resgatarDaMeta, pagarFixa, pagarFatura, formLancamento, formAcerto, formBaixa, formEmprestimo, pagarPrestacao } from "./formularios.js";
 import {
   decodificar, ehOFX, lerOFX, lerCSV, adivinharColunas, linhasDoCSV, sugerirCategoria, chaveImportacao,
 } from "./importar.js";
@@ -64,10 +65,12 @@ function graficoBarras({ rotulos, series, altura = 220, dicas }) {
     const v = passo * i;
     return `<line x1="${ml}" x2="${W - mr}" y1="${y(v)}" y2="${y(v)}" class="g-linha"/><text x="${ml - 6}" y="${y(v) + 4}" class="g-eixo" text-anchor="end">${estado.ocultar ? "" : abreviar(v)}</text>`;
   }).join("");
+  const pulo = Math.max(1, Math.ceil(44 / gw)); // em telas estreitas mostra só alguns meses no eixo
   const grupos = rotulos.map((rot, i) => {
     const x0 = ml + gw * i + (gw - (bw * k + (k - 1) * 2)) / 2;
     const barras = series.map((s, j) => `<path d="${barra(x0 + j * (bw + 2), s.valores[i])}" fill="${s.cor}"/>`).join("");
-    return `<g class="g-col">${barras}<text x="${ml + gw * i + gw / 2}" y="${H - 8}" class="g-eixo" text-anchor="middle">${esc(rot)}</text>
+    const rotulo = i % pulo === 0 ? `<text x="${ml + gw * i + gw / 2}" y="${H - 8}" class="g-eixo" text-anchor="middle">${esc(rot)}</text>` : "";
+    return `<g class="g-col">${barras}${rotulo}
       <rect x="${ml + gw * i}" y="${mt}" width="${gw}" height="${ph}" class="g-alvo" data-tip="${esc(dicas[i])}"/></g>`;
   }).join("");
   const legenda = k > 1 ? `<div class="g-legenda">${series.map((s) => `<span><i style="background:${s.cor}"></i>${esc(s.nome)}</span>`).join("")}</div>` : "";
@@ -275,7 +278,7 @@ export function htmlMetas() {
 // ---------- Avisos de vencimento ----------
 
 export const avisosAtuais = () =>
-  avisosDeVencimento({ lancamentos: estado.lancamentos, fixas: estado.fixas, contas: estado.contas, dias: estado.diasAviso });
+  avisosDeVencimento({ lancamentos: estado.lancamentos, fixas: estado.fixas, contas: estado.contas, dias: estado.diasAviso, emprestimos: estado.emprestimos });
 
 export function htmlAvisoInicio() {
   const av = avisosAtuais();
@@ -294,7 +297,7 @@ export function abrirAvisos() {
     <p class="sub">Contas pendentes atrasadas ou que vencem nos próximos dias.</p>
     ${av.length ? `<ul class="lista simples">${av.map((i, n) => `
       <li class="item" data-aviso="${n}">
-        ${i.tipo === "fatura" ? icConta({ tipo: "cartao" }) : icCat(i.tipo === "fixa" ? i.fixa.categoria : i.lanc.categoria, "despesa")}
+        ${i.tipo === "fatura" ? icConta({ tipo: "cartao" }) : i.tipo === "emprestimo" ? `<span class="cat-ic neutro">${svg(iconeEmprestimo(i.emprestimo))}</span>` : icCat(i.tipo === "fixa" ? i.fixa.categoria : i.lanc.categoria, "despesa")}
         <span class="txt"><b>${esc(i.nome)}</b><small class="${i.atrasada ? "neg" : ""}">${i.atrasada ? "venceu em" : i.venceHoje ? "vence hoje," : "vence"} ${dataCurta(i.vence)}</small></span>
         <span class="val">${i.valor ? dinheiro(i.valor) : "—"}</span>
       </li>`).join("")}</ul>` : `<p class="vazio">Nada vencendo nos próximos ${estado.diasAviso} dias.</p>`}
@@ -306,6 +309,7 @@ export function abrirAvisos() {
       const i = av[Number(li.dataset.aviso)];
       if (i.tipo === "fixa") pagarFixa(i.fixa, i.mes);
       else if (i.tipo === "fatura") pagarFatura(faturaDoCartao(i.fatura.cartao, i.mes, estado.lancamentos));
+      else if (i.tipo === "emprestimo") pagarPrestacao(i.emprestimo, i.mes);
       else formLancamento(i.lanc);
     }));
     $("#dias-aviso", m).addEventListener("change", (e) => {
@@ -485,7 +489,8 @@ async function confirmarImportacao(nav) {
 // ---------- Quanto ainda posso gastar (visão geral) ----------
 
 export function htmlQuantoPossoGastar(r) {
-  const q = quantoPossoGastar(r, estado.mes);
+  const prestacoes = prestacoesPendentesNoMes(estado.emprestimos, estado.lancamentos, estado.mes).reduce((s, e) => s + (e.valorParcela || 0), 0);
+  const q = quantoPossoGastar(r, estado.mes, hojeISO(), prestacoes);
   if (!q.receitas && !q.despesas) return "";
   const negativo = q.disponivel < 0;
   return `
@@ -502,6 +507,7 @@ export function htmlQuantoPossoGastar(r) {
         <div class="linha-simples"><span>Receitas do mês</span><b>${dinheiro(q.receitas)}</b></div>
         <div class="linha-simples"><span>Gastos já lançados (inclui faturas e pendentes)</span><b>− ${dinheiro(q.despesas)}</b></div>
         <div class="linha-simples"><span>Contas fixas que ainda faltam lançar</span><b>− ${dinheiro(q.fixasPendentes)}</b></div>
+        ${q.prestacoesPendentes ? `<div class="linha-simples"><span>Prestações de financiamentos que faltam pagar</span><b>− ${dinheiro(q.prestacoesPendentes)}</b></div>` : ""}
         ${q.reservaPoupar ? `<div class="linha-simples"><span>Falta guardar no grupo Poupar</span><b>− ${dinheiro(q.reservaPoupar)}</b></div>` : ""}
       </details>
     </section>`;
@@ -618,6 +624,146 @@ export function htmlPessoas() {
       ${estado.verAcertos ? `<ul class="lista">${quitados.sort((a, b) => (b.data || "").localeCompare(a.data || "")).map((a) => item(a).replace('class="item"', 'class="item paga"')).join("")}</ul>` : ""}` : ""}`;
 }
 
+// ---------- Dívidas ----------
+
+const iconeEmprestimo = (e) => ({ imovel: "casa", veiculo: "carro", emprestimo: "banco", consorcio: "moedas" }[e?.tipo] || "recibo");
+const CORES_DIVIDA = { financiamentos: "#7c3aed", cartoes: "#2563eb", parcelados: "#0d9488", cheque: "#dc2626", pessoas: "#ea580c", vencidas: "#b45309" };
+const ICONES_DIVIDA = { financiamentos: "banco", cartoes: "cartao", parcelados: "parcelas", cheque: "porcento", pessoas: "pessoas", vencidas: "alerta" };
+
+const panoramaAtual = () => panoramaDividas({
+  lancamentos: estado.lancamentos, contas: estado.contas, emprestimos: estado.emprestimos, acertos: estado.acertos, fixas: estado.fixas,
+});
+
+function nivelComprometimento(c) {
+  if (c === null) return { classe: "", texto: "Lance as receitas para calcular quanto da renda vai para parcelas." };
+  const pct = Math.round(c * 100);
+  if (c <= 0.3) return { classe: "ok", texto: `${pct}% da renda mensal vai para parcelas e prestações. Está em um nível saudável (até 30%).` };
+  if (c <= 0.5) return { classe: "atencao", texto: `${pct}% da renda mensal vai para parcelas e prestações. Atenção: acima de 30% já aperta o orçamento.` };
+  return { classe: "estourou", texto: `${pct}% da renda mensal vai para parcelas e prestações. Nível alto: mais da metade da renda já está comprometida.` };
+}
+
+// Bloco resumido da visão geral.
+export function htmlResumoDividas() {
+  const p = panoramaAtual();
+  if (!p.total && !estado.emprestimos.length) return "";
+  const partes = p.composicao.filter((g) => g.valor > 0);
+  return `
+    <section class="painel">
+      <div class="cab"><h2>Minhas dívidas</h2><button class="btn link" data-ir="dividas">Ver panorama ${svg("direita")}</button></div>
+      <div class="saldo-geral divida"><span>Total que ainda vão pagar</span><b>${dinheiro(p.total)}</b>
+        ${p.comprometimento !== null ? `<small>${Math.round(p.comprometimento * 100)}% da renda comprometida com parcelas</small>` : ""}</div>
+      ${partes.length ? `<div class="barra-composicao">${partes.map((g) => `<span style="width:${(g.valor / p.total) * 100}%;background:${CORES_DIVIDA[g.id]}" title="${esc(g.nome)}"></span>`).join("")}</div>
+      <ul class="legenda-divida">${partes.map((g) => `<li><i style="background:${CORES_DIVIDA[g.id]}"></i>${esc(g.nome)}<b>${dinheiro(g.valor)}</b></li>`).join("")}</ul>` : `<p class="sub">Nenhuma dívida em aberto.</p>`}
+    </section>`;
+}
+
+export function htmlDividas() {
+  const p = panoramaAtual();
+  const nivel = nivelComprometimento(p.comprometimento);
+  const partes = p.composicao.filter((g) => g.valor > 0);
+  const proj = p.projecao;
+  const mesesComValor = proj.filter((x) => x.valor > 0);
+  const detalhe = {
+    financiamentos: (x) => {
+      const e = x.emprestimo;
+      return `
+        <li class="item divida-item" data-editar-emprestimo="${e.id}">
+          <span class="cat-ic" style="--c:${CORES_DIVIDA.financiamentos}">${svg(iconeEmprestimo(e))}</span>
+          <span class="txt"><b>${esc(e.nome)}</b>
+            <small>${esc(TIPOS_EMPRESTIMO[e.tipo] || "")}${e.credor ? ` · ${esc(e.credor)}` : ""} · ${dinheiro(e.valorParcela)}/mês · ${x.pagas} de ${x.total} pagas</small>
+            <small>Faltam ${x.restantes} parcela(s) · última em ${x.ultimaParcela ? nomeMes(x.ultimaParcela) : "—"}${e.saldoDevedor ? ` · saldo devedor no banco: ${dinheiro(e.saldoDevedor)}` : ""}</small>
+            <span class="trilho-mini"><span style="width:${x.pct * 100}%;background:${CORES_DIVIDA.financiamentos}"></span></span>
+          </span>
+          <span class="val-duplo"><b>${dinheiro(x.valor)}</b>${x.pagaNoMes ? `<small>paga este mês</small>` : `<button class="btn pequeno" data-pagar-prestacao="${e.id}">Pagar parcela</button>`}</span>
+        </li>`;
+    },
+    cartoes: (x) => `
+      <li class="item divida-item" data-abrir-cartao="${x.conta.id}">
+        ${icConta(x.conta)}
+        <span class="txt"><b>${esc(x.conta.nome)}</b>
+          <small>${x.faturas.map((f) => `${mesCurto(f.mes)}: ${dinheiro(f.falta)}${f.status === "atrasada" ? " (atrasada)" : f.mes < hojeISO().slice(0, 7) ? " (sem pagamento registrado)" : ""}`).join(" · ")}</small></span>
+        <span class="val-duplo"><b>${dinheiro(x.valor)}</b><small>${x.faturas.length} fatura(s)</small></span>
+      </li>`,
+    parcelados: (x) => `
+      <li class="item divida-item" data-editar="${x.primeira.id}">
+        ${icCat(x.primeira.categoria, "despesa")}
+        <span class="txt"><b>${esc(x.descricao)}</b><small>${x.parcelas.length} parcela(s) pendente(s) · última em ${nomeMes(x.fim)}</small></span>
+        <span class="val-duplo"><b>${dinheiro(x.valor)}</b></span>
+      </li>`,
+    cheque: (x) => `
+      <li class="item divida-item" data-editar-conta="${x.conta.id}">
+        ${icConta(x.conta)}
+        <span class="txt"><b>${esc(x.conta.nome)}</b><small>saldo negativo · ${esc(pessoa(x.conta.dono).nome)} · os juros do cheque especial costumam ser os mais caros</small></span>
+        <span class="val-duplo"><b class="neg">${dinheiro(x.valor)}</b></span>
+      </li>`,
+    pessoas: (x) => `
+      <li class="item divida-item" data-ir="pessoas">
+        <span class="cat-ic" style="--c:${CORES_DIVIDA.pessoas}">${svg("pessoas")}</span>
+        <span class="txt"><b>${esc(x.acerto.pessoaNome)}</b><small>${esc(x.acerto.descricao || "")}${x.acerto.vencimento ? ` · combinado para ${dataCurta(x.acerto.vencimento)}` : ""}</small></span>
+        <span class="val-duplo"><b>${dinheiro(x.valor)}</b></span>
+      </li>`,
+    vencidas: (x) => `
+      <li class="item divida-item" data-editar="${x.lanc.id}">
+        ${icCat(x.lanc.categoria, "despesa")}
+        <span class="txt"><b>${esc(x.lanc.descricao || x.lanc.categoria)}</b><small>venceu em ${dataCurta(x.lanc.data)}</small></span>
+        <span class="val-duplo"><b>${dinheiro(x.valor)}</b></span>
+      </li>`,
+  };
+  return `
+    <div class="cab-pagina"><h1>Dívidas</h1><button class="btn pequeno" id="novo-emprestimo">${svg("mais")} Financiamento ou empréstimo</button></div>
+
+    <section class="painel destaque-divida">
+      <span class="rotulo-quanto">Total que vocês ainda vão pagar</span>
+      <b class="valor-divida">${dinheiro(p.total)}</b>
+      <div class="indicadores">
+        <div><span>Parcelas e prestações por mês</span><b>${dinheiro(p.compromissoMensal)}</b></div>
+        <div><span>Renda média (últimos meses)</span><b>${dinheiro(p.rendaMedia)}</b></div>
+        <div><span>Livres das parcelas atuais em</span><b>${p.livreEm ? nomeMes(p.livreEm) : "—"}</b></div>
+      </div>
+      <p class="comprometimento ${nivel.classe}">${nivel.texto}</p>
+    </section>
+
+    ${partes.length ? `
+    <section class="painel">
+      <h2>De onde vem o total</h2>
+      <div class="barra-composicao grande">${partes.map((g) => `<span style="width:${(g.valor / p.total) * 100}%;background:${CORES_DIVIDA[g.id]}" title="${esc(g.nome)}"></span>`).join("")}</div>
+      ${partes.map((g) => `
+        <div class="linha-composicao">
+          <span class="cat-ic mini" style="--c:${CORES_DIVIDA[g.id]}">${svg(ICONES_DIVIDA[g.id])}</span>
+          <span class="nome">${esc(g.nome)}</span>
+          <span class="pct">${g.valor / p.total < 0.01 ? "menos de 1%" : Math.round((g.valor / p.total) * 100) + "%"}</span>
+          <b>${dinheiro(g.valor)}</b>
+        </div>`).join("")}
+    </section>` : ""}
+
+    ${mesesComValor.length ? `
+    <section class="painel">
+      <h2>Quanto vence em cada mês</h2>
+      <p class="sub">Faturas, prestações, parcelas e valores combinados com pessoas, nos próximos 12 meses.</p>
+      ${graficoBarras({
+        rotulos: proj.map((x) => mesCurto(x.mes)),
+        series: [{ nome: "A pagar", cor: COR_DESPESA, valores: proj.map((x) => x.valor) }],
+        dicas: proj.map((x) => `${nomeMes(x.mes)}\n${dinheiro(x.valor)}`),
+        altura: 200,
+      })}
+    </section>` : ""}
+
+    ${p.composicao.map((g) => {
+      if (g.id === "financiamentos") {
+        return `<h3 class="dia pessoa-cab"><span>${esc(g.nome)}</span><span>${dinheiro(g.valor)}</span></h3>
+          ${g.itens.length ? `<ul class="lista">${g.itens.map(detalhe.financiamentos).join("")}</ul>` : `<section class="painel"><p class="sub">Cadastre aqui financiamento da casa, do carro, empréstimos e consórcios: o app conta as parcelas pagas e mostra quanto falta e quando termina.</p>
+            <div class="acoes centro"><button class="btn primario" id="novo-emprestimo-2">${svg("mais")} Cadastrar</button></div></section>`}`;
+      }
+      if (!g.itens.length) return "";
+      return `<h3 class="dia pessoa-cab"><span>${esc(g.nome)}</span><span>${dinheiro(g.valor)}</span></h3>
+        <ul class="lista">${g.itens.map(detalhe[g.id]).join("")}</ul>`;
+    }).join("")}
+
+    ${estado.emprestimos.some((e) => e.ativo === false) ? `<h3 class="dia">Encerrados</h3><ul class="lista">${estado.emprestimos.filter((e) => e.ativo === false).map((e) => `
+      <li class="item paga" data-editar-emprestimo="${e.id}"><span class="cat-ic neutro">${svg(iconeEmprestimo(e))}</span><span class="txt"><b>${esc(e.nome)}</b><small>${esc(TIPOS_EMPRESTIMO[e.tipo] || "")}</small></span></li>`).join("")}</ul>` : ""}
+    <p class="sub">O total soma o que ainda vai sair do bolso: parcelas restantes dos financiamentos (sem descontar juros de uma quitação antecipada), faturas em aberto (inclusive parcelas futuras), saldo negativo das contas, valores devidos a pessoas e contas vencidas.</p>`;
+}
+
 // ---------- Eventos das telas extras ----------
 
 export function ligarExtras(el, nav) {
@@ -640,6 +786,11 @@ export function ligarExtras(el, nav) {
 
   // avisos
   on("[data-abrir-avisos]", () => abrirAvisos());
+
+  // dívidas
+  on("#novo-emprestimo, #novo-emprestimo-2", () => formEmprestimo());
+  on("[data-editar-emprestimo]", (li) => formEmprestimo(estado.emprestimos.find((e) => e.id === li.dataset.editarEmprestimo)));
+  on("[data-pagar-prestacao]", (b, ev) => { ev.stopPropagation(); pagarPrestacao(estado.emprestimos.find((e) => e.id === b.dataset.pagarPrestacao), hojeISO().slice(0, 7)); });
 
   // parcelamentos
   on("[data-ver-parcelas]", (b) => { estado.verParcelas = b.dataset.verParcelas; nav.render(); });

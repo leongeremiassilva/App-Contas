@@ -5,14 +5,14 @@ import {
   TIPOS_CONTA, NOMES_MESES, dinheiro, FILTRO_VAZIO, temaEscuroAtivo, todasAsTags, meta,
 } from "./estado.js";
 import { svg } from "./icones.js";
-import { htmlRelatorios, htmlMetas, htmlImportar, htmlAvisoInicio, ligarExtras, htmlParcelamentos, htmlPessoas, htmlQuantoPossoGastar, htmlResumoPessoas } from "./telas-extras.js";
+import { htmlRelatorios, htmlMetas, htmlImportar, htmlAvisoInicio, ligarExtras, htmlParcelamentos, htmlPessoas, htmlQuantoPossoGastar, htmlResumoPessoas, htmlDividas, htmlResumoDividas } from "./telas-extras.js";
 import { $, $$, esc, toast, erroMsg } from "./ui.js";
 import {
   hojeISO, mesAtual, nomeMes, dataCurta, somarMeses, resumoDoMes, grupoDe, fixasDoMes, estaPago,
   saldosDasContas, faturaDoCartao, contasAPagar, aReceber, dataDoMes,
 } from "./financas.js";
 import {
-  formLancamento, formConta, formCategoria, formFixa, pagarFixa, pagarFatura, alternarPago, exportarCSV, formConferirSaldo,
+  formLancamento, formConta, formCategoria, formFixa, pagarFixa, pagarFatura, alternarPago, exportarCSV, formConferirSaldo, pagarPrestacao,
 } from "./formularios.js";
 
 const CORES_GRAFICO = ["#16a34a", "#2f6fde", "#d9467a", "#f59e0b", "#8b5cf6", "#0891b2", "#a3a3a3"];
@@ -39,7 +39,7 @@ function htmlInicio() {
   const contas = contasBancarias();
   const saldoGeral = contas.reduce((s, c) => s + saldos[c.id].atual, 0);
   const previstoGeral = contas.reduce((s, c) => s + saldos[c.id].previsto, 0);
-  const apagar = contasAPagar({ lancamentos: estado.lancamentos, fixas: estado.fixas, contas: estado.contas, mes: estado.mes });
+  const apagar = contasAPagar({ lancamentos: estado.lancamentos, fixas: estado.fixas, contas: estado.contas, mes: estado.mes, emprestimos: estado.emprestimos });
   const areceber = aReceber(estado.lancamentos, estado.mes);
   const [a, m] = estado.mes.split("-").map(Number);
   const ultimoDia = new Date(a, m, 0).getDate();
@@ -100,7 +100,7 @@ function htmlInicio() {
           <p class="total-apagar">${apagar.length} pendente(s) · <b>${dinheiro(apagar.reduce((s, i) => s + i.valor, 0))}</b></p>
           <ul class="lista simples">${apagar.slice(0, 8).map((i) => `
             <li class="item" data-apagar="${i.tipo}:${i.id}">
-              ${i.tipo === "fatura" ? icConta({ tipo: "cartao" }) : icCat(i.tipo === "fixa" ? i.fixa.categoria : i.lanc.categoria, "despesa")}
+              ${i.tipo === "fatura" ? icConta({ tipo: "cartao" }) : i.tipo === "emprestimo" ? icConta({ tipo: "conta" }) : icCat(i.tipo === "fixa" ? i.fixa.categoria : i.lanc.categoria, "despesa")}
               <span class="txt"><b>${esc(i.nome)}</b><small class="${i.atrasada ? "neg" : ""}">${i.atrasada ? "venceu" : "vence"} ${dataCurta(i.vence)}</small></span>
               <span class="val">${i.valor ? dinheiro(i.valor) : "—"}</span>
             </li>`).join("")}</ul>
@@ -113,6 +113,8 @@ function htmlInicio() {
         ${r.receitas === 0 ? `<p class="dica">Lance as receitas do mês para calcular quanto cabe em cada grupo.</p>` : ""}
         ${r.grupos.filter((g) => g.meta || g.gasto).map(htmlBarraGrupo).join("") || `<p class="vazio">Sem metas para mostrar.</p>`}
       </section>
+
+      ${htmlResumoDividas()}
 
       <section class="painel largo">
         <div class="cab"><h2>Maiores gastos do mês</h2></div>
@@ -448,6 +450,7 @@ function htmlMais() {
     <div class="cab-pagina"><h1>Mais</h1></div>
     <ul class="lista menu-mais">
       <li class="item" data-ir="cartoes">${icConta({ tipo: "cartao" })}<span class="txt"><b>Cartões de crédito</b><small>faturas e pagamentos</small></span><span class="seta">${svg("direita")}</span></li>
+      <li class="item" data-ir="dividas"><span class="cat-ic neutro">${svg("queda")}</span><span class="txt"><b>Dívidas</b><small>panorama de tudo que ainda vão pagar</small></span><span class="seta">${svg("direita")}</span></li>
       <li class="item" data-ir="parcelamentos"><span class="cat-ic neutro">${svg("parcelas")}</span><span class="txt"><b>Parcelamentos</b><small>compras parceladas e quanto falta</small></span><span class="seta">${svg("direita")}</span></li>
       <li class="item" data-ir="pessoas"><span class="cat-ic neutro">${svg("pessoas")}</span><span class="txt"><b>A receber e a pagar</b><small>valores com outras pessoas</small></span><span class="seta">${svg("direita")}</span></li>
       <li class="item" data-ir="metas"><span class="cat-ic neutro">${svg("bandeira")}</span><span class="txt"><b>Metas de economia</b><small>quanto já guardaram para cada objetivo</small></span><span class="seta">${svg("direita")}</span></li>
@@ -473,6 +476,7 @@ export const TELAS = {
   metas: { titulo: "Metas", icone: "bandeira", html: htmlMetas, usaMes: false },
   parcelamentos: { titulo: "Parcelamentos", icone: "parcelas", html: htmlParcelamentos, usaMes: true },
   pessoas: { titulo: "A receber e a pagar", icone: "pessoas", html: htmlPessoas, usaMes: false },
+  dividas: { titulo: "Dívidas", icone: "queda", html: htmlDividas, usaMes: false },
   importar: { titulo: "Importar extrato", icone: "importar", html: htmlImportar, usaMes: false },
   mais: { titulo: "Mais", icone: "menu", html: htmlMais, usaMes: false },
 };
@@ -500,6 +504,7 @@ export function ligarEventos(el, nav) {
     const [tipo, id] = li.dataset.apagar.split(":");
     if (tipo === "fixa") pagarFixa(estado.fixas.find((f) => f.id === id));
     else if (tipo === "fatura") pagarFatura(faturaDoCartao(conta(id), estado.mes, estado.lancamentos));
+    else if (tipo === "emprestimo") pagarPrestacao(estado.emprestimos.find((e) => e.id === id), estado.mes);
     else formLancamento(estado.lancamentos.find((l) => l.id === id));
   });
   on("[data-cat]", (b) => formCategoria(estado.categorias.find((c) => c.id === b.dataset.cat)));
