@@ -2,6 +2,7 @@
 //   watch(colecao, callback)   -> chama callback([...docs]) sempre que algo muda; retorna função para parar
 //   add(colecao, dados)        -> id
 //   addMany(colecao, [dados])
+//   set(colecao, id, dados)     -> cria/substitui com id fixo
 //   update(colecao, id, dados)
 //   remove(colecao, id)
 //   removeMany(colecao, [ids])
@@ -121,6 +122,17 @@ export async function addMany(colecao, lista) {
     lista.slice(i, i + 400).forEach((d) => batch.set(doc(collection(fb.db, colecao)), d));
     await batch.commit();
   }
+}
+
+// Grava um documento com id escolhido (cria ou substitui). Útil para dados padrão sem duplicar.
+export async function set(colecao, id, dados) {
+  if (modoDemo) {
+    const docs = lerDemo(colecao).filter((d) => d.id !== id);
+    gravarDemo(colecao, [...docs, { id, ...dados }]);
+    return;
+  }
+  const { doc, setDoc } = fb.fsMod;
+  await setDoc(doc(fb.db, colecao, id), dados);
 }
 
 export async function update(colecao, id, dados) {

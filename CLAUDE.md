@@ -1,6 +1,6 @@
 # Contas da Casa — instruções para o Claude
 
-App de controle financeiro do casal (Leon e esposa). O Leon descreve as funções em português no chat; o Claude implementa, testa e publica. Responda sempre em português do Brasil, em linguagem simples (o usuário não é programador).
+App de controle financeiro do casal (Leon e Ariane; no código a Ariane tem id `esposa`). O Leon descreve as funções em português no chat; o Claude implementa, testa e publica. Responda sempre em português do Brasil, em linguagem simples (o usuário não é programador).
 
 ## Arquitetura
 - Site estático, **sem build e sem npm**: HTML + CSS + JavaScript (módulos ES). Firebase carregado pelo CDN (`https://www.gstatic.com/firebasejs/11.0.2/...`).
@@ -13,15 +13,23 @@ App de controle financeiro do casal (Leon e esposa). O Leon descreve as funçõe
 ## Arquivos
 - `js/config.js` — chaves do Firebase e a lista `pessoas` (id, nome, email, cor). Com `apiKey` vazio o app roda em **modo demonstração** (localStorage).
 - `js/store.js` — camada de dados com a mesma interface para Firestore e modo demo (`watch`, `add`, `addMany`, `update`, `remove`, `removeMany`).
-- `js/financas.js` — regras puras: dinheiro em centavos, competência de cartão, parcelamento/recorrência, resumo do mês, acerto meio a meio.
-- `js/app.js` — telas (Resumo, Lançamentos, Cadastros), formulários e modais.
+- `js/financas.js` — regras puras e dados padrão: grupos, categorias, contas fixas sugeridas, dinheiro em centavos, competência de cartão, parcelamento/recorrência, resumo do mês (orçamento por grupo).
+- `js/app.js` — telas (Orçamento, Lançamentos, Contas fixas, Ajustes), formulários, modais e a preparação/migração de dados (`prepararDados`, controlada por `config/versao`).
 - `css/style.css` — visual, mobile-first, com tema escuro automático.
 - `sw.js` + `manifest.json` + ícones — permitem instalar na tela inicial (rede primeiro).
 
+## Como o casal pensa o dinheiro
+- O dinheiro é todo junto. O que importa é **para que** foi o gasto (grupo do orçamento) e se as **contas fixas** foram pagas; "quem pagou" é secundário. Não existe acerto entre os dois.
+- Orçamento por grupos com meta em **% da receita do mês**: Fixos 30, Pessoal 30, Alimentação 20, Casa 20, Poupar 0 (editável em Ajustes).
+- Gastos do grupo Pessoal indicam de quem são (Leon ou Ariane).
+
 ## Modelo de dados (Firestore)
-- `lancamentos`: `tipo` ("despesa"|"receita"), `valor` (centavos, inteiro), `descricao`, `categoria` (nome), `data` (YYYY-MM-DD da compra), `competencia` (YYYY-MM em que o dinheiro sai: para cartão é o mês do vencimento da fatura), `pessoa` (id), `contaId`, `obs`, `parcela`, `totalParcelas`, `recorrencia` ("parcelado"|"fixo"|null), `grupoId`, `criadoPor`, `criadoEm`, `alteradoPor`, `alteradoEm`.
+- `lancamentos`: `tipo` ("despesa"|"receita"), `valor` (centavos, inteiro), `descricao`, `categoria` (nome), `grupo` (id do grupo; se faltar, vale o grupo da categoria), `pessoalDe` (id da pessoa, só no grupo pessoal), `data` (YYYY-MM-DD), `competencia` (YYYY-MM em que o dinheiro sai: para cartão é o mês do vencimento da fatura), `pessoa` (receita: quem recebeu; despesa: dono da conta usada), `contaId`, `obs`, `fixaId` (pagamento de conta fixa), `parcela`, `totalParcelas`, `recorrencia` ("parcelado"|"fixo"|null), `grupoId` (liga parcelas/repetições), `criadoPor`, `criadoEm`, `alteradoPor`, `alteradoEm`.
+- `grupos` (id fixo: fixos, pessoal, alimentacao, casa, poupar): `nome`, `percentual`, `icone`, `ordem`.
+- `categorias`: `nome`, `tipo`, `icone`, `grupo` (só despesa).
+- `fixas`: `nome`, `valor` (previsto, centavos), `dia`, `categoria`, `meses` (lista 1-12; vazia = todo mês), `ativa`. Paga no mês = existe lançamento com `fixaId` e `competencia` daquele mês.
 - `contas`: `nome`, `tipo` ("conta"|"cartao"|"dinheiro"), `dono` (id da pessoa), `fechamento`, `vencimento` (dias, só cartão).
-- `categorias`: `nome`, `tipo`, `icone`. Criadas automaticamente na primeira abertura se a coleção estiver vazia.
+- `config/versao`: `{ dados: 2 }`. Ao mudar dados padrão ou estrutura, suba `VERSAO_DADOS` em app.js e trate a migração em `prepararDados`.
 - Regra de cartão: compra no dia do fechamento ou depois vai para a fatura seguinte.
 
 ## Como trabalhar

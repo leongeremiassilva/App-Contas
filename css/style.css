@@ -195,3 +195,45 @@ input[name=valor] { font-size: 24px; font-weight: 600; font-variant-numeric: tab
   position: fixed; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30;
   background: #1c1917; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; max-width: 90vw;
 }
+
+/* ---------- Orçamento por grupos ---------- */
+button.kpi { text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.grupo-linha { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; width: 100%; background: none; border: 0; border-top: 1px solid var(--borda); padding: 10px 0; text-align: left; cursor: pointer; }
+.grupo-linha:first-of-type { border-top: 0; }
+.grupo-linha .rotulo { font-weight: 600; }
+.grupo-linha .rotulo small { font-weight: 400; margin-left: 4px; }
+.grupo-linha .valor { font-variant-numeric: tabular-nums; font-weight: 600; }
+.grupo-linha .valor small { font-weight: 400; }
+.grupo-linha .trilho { grid-column: 1 / -1; height: 10px; background: var(--fundo); border-radius: 5px; overflow: hidden; }
+.grupo-linha .trilho span { display: block; height: 100%; border-radius: 5px; background: var(--receita); }
+.grupo-linha .trilho.atencao span { background: #d97706; }
+.grupo-linha .trilho.estourou span { background: var(--perigo); }
+.grupo-linha .resta { grid-column: 1 / -1; font-size: 13px; }
+.resta.estourou { color: var(--perigo); font-weight: 600; }
+.pessoal-divisao { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; background: var(--fundo); padding: 8px 12px; border-radius: 10px; margin-top: 6px; }
+.dica { background: var(--verde-claro); padding: 10px 12px; border-radius: 10px; font-size: 14px; margin: 0 0 8px; }
+.alerta { color: #b45309; font-weight: 600; }
+.linha-bloco { display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 10px; cursor: pointer; font: inherit; color: inherit; text-align: left; font-variant-numeric: tabular-nums; }
+
+/* ---------- Lista ---------- */
+.etiqueta { display: inline-block; background: var(--fundo); border: 1px solid var(--borda); border-radius: 6px; padding: 0 6px; margin-right: 4px; font-size: 12px; }
+.etiqueta.receita { color: var(--receita); }
+.item.paga .txt b, .item.paga .val { color: var(--suave); }
+.item.inativa { opacity: .5; }
+.subtitulo { font-size: 13px; color: var(--suave); margin: 12px 0 6px; }
+.acoes.centro { justify-content: center; margin: 14px 0; }
+
+/* ---------- Formulários extras ---------- */
+fieldset.meses { border: 1px solid var(--borda); border-radius: 10px; padding: 8px 10px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 0; }
+fieldset.meses legend { font-size: 13px; color: var(--suave); padding: 0 4px; }
+fieldset.meses label { display: block; }
+fieldset.meses input { position: absolute; opacity: 0; width: 0; height: 0; min-height: 0; }
+fieldset.meses span { display: block; text-align: center; padding: 6px 0; border-radius: 8px; border: 1px solid var(--borda); font-size: 13px; cursor: pointer; color: var(--texto); }
+fieldset.meses input:checked + span { background: var(--verde); border-color: var(--verde); color: #fff; }
+label.check { display: flex; align-items: center; gap: 8px; color: var(--texto); font-size: 15px; }
+label.check input { width: 20px; min-height: 20px; }
+.metas { gap: 6px; }
+.meta-linha { display: flex; justify-content: space-between; align-items: center; color: var(--texto); font-size: 15px; }
+.meta-linha .pct { display: flex; align-items: center; gap: 4px; }
+.meta-linha input { width: 80px; text-align: right; }
+.total-metas { margin: 6px 0; font-size: 14px; }

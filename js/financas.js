@@ -1,27 +1,70 @@
 // Regras de negócio puras (sem tela, sem banco). Valores sempre em CENTAVOS (inteiros).
 
+// Grupos do orçamento (como na planilha do Leon). A meta é um % da receita do mês.
+export const GRUPOS_PADRAO = [
+  { id: "fixos", nome: "Fixos", percentual: 30, icone: "📌", ordem: 1 },
+  { id: "pessoal", nome: "Pessoal", percentual: 30, icone: "🙋", ordem: 2 },
+  { id: "alimentacao", nome: "Alimentação", percentual: 20, icone: "🛒", ordem: 3 },
+  { id: "casa", nome: "Casa", percentual: 20, icone: "🏠", ordem: 4 },
+  { id: "poupar", nome: "Poupar", percentual: 0, icone: "🐷", ordem: 5 },
+];
+
 export const CATEGORIAS_PADRAO = [
-  { nome: "Mercado", tipo: "despesa", icone: "🛒" },
-  { nome: "Combustível", tipo: "despesa", icone: "⛽" },
-  { nome: "Contas básicas (luz, água, gás)", tipo: "despesa", icone: "💡" },
-  { nome: "Internet e telefone", tipo: "despesa", icone: "📶" },
-  { nome: "Moradia", tipo: "despesa", icone: "🏠" },
-  { nome: "Casa e manutenção", tipo: "despesa", icone: "🔧" },
-  { nome: "Restaurante e delivery", tipo: "despesa", icone: "🍽️" },
-  { nome: "Saúde e farmácia", tipo: "despesa", icone: "💊" },
-  { nome: "Transporte", tipo: "despesa", icone: "🚗" },
-  { nome: "Educação", tipo: "despesa", icone: "📚" },
-  { nome: "Lazer", tipo: "despesa", icone: "🎉" },
-  { nome: "Vestuário", tipo: "despesa", icone: "👕" },
-  { nome: "Assinaturas", tipo: "despesa", icone: "📺" },
-  { nome: "Pets", tipo: "despesa", icone: "🐾" },
-  { nome: "Impostos e taxas", tipo: "despesa", icone: "🧾" },
-  { nome: "Outros gastos", tipo: "despesa", icone: "📦" },
+  { nome: "Mercado", tipo: "despesa", icone: "🛒", grupo: "alimentacao" },
+  { nome: "Padaria", tipo: "despesa", icone: "🥖", grupo: "alimentacao" },
+  { nome: "Restaurante e delivery", tipo: "despesa", icone: "🍽️", grupo: "alimentacao" },
+  { nome: "Combustível", tipo: "despesa", icone: "⛽", grupo: "alimentacao" },
+  { nome: "Moradia e financiamento", tipo: "despesa", icone: "🏠", grupo: "fixos" },
+  { nome: "Condomínio", tipo: "despesa", icone: "🏢", grupo: "fixos" },
+  { nome: "Contas básicas (luz, água, gás)", tipo: "despesa", icone: "💡", grupo: "fixos" },
+  { nome: "Internet e telefone", tipo: "despesa", icone: "📶", grupo: "fixos" },
+  { nome: "Plano de saúde", tipo: "despesa", icone: "🏥", grupo: "fixos" },
+  { nome: "Impostos (IPTU, IPVA)", tipo: "despesa", icone: "🧾", grupo: "fixos" },
+  { nome: "Assinaturas", tipo: "despesa", icone: "📺", grupo: "fixos" },
+  { nome: "Casa e manutenção", tipo: "despesa", icone: "🔧", grupo: "casa" },
+  { nome: "Móveis e utilidades", tipo: "despesa", icone: "🛋️", grupo: "casa" },
+  { nome: "Farmácia", tipo: "despesa", icone: "💊", grupo: "casa" },
+  { nome: "Bebê e filhos", tipo: "despesa", icone: "🍼", grupo: "casa" },
+  { nome: "Carro e transporte", tipo: "despesa", icone: "🚗", grupo: "casa" },
+  { nome: "Juros e tarifas", tipo: "despesa", icone: "🏦", grupo: "casa" },
+  { nome: "Presentes e eventos", tipo: "despesa", icone: "🎁", grupo: "casa" },
+  { nome: "Pets", tipo: "despesa", icone: "🐾", grupo: "casa" },
+  { nome: "Outros gastos", tipo: "despesa", icone: "📦", grupo: "casa" },
+  { nome: "Cuidados pessoais", tipo: "despesa", icone: "💈", grupo: "pessoal" },
+  { nome: "Roupas e calçados", tipo: "despesa", icone: "👕", grupo: "pessoal" },
+  { nome: "Lazer", tipo: "despesa", icone: "🎉", grupo: "pessoal" },
+  { nome: "Educação", tipo: "despesa", icone: "📚", grupo: "pessoal" },
+  { nome: "Poupança e investimentos", tipo: "despesa", icone: "🐷", grupo: "poupar" },
   { nome: "Salário", tipo: "receita", icone: "💼" },
   { nome: "Renda extra", tipo: "receita", icone: "✨" },
   { nome: "Rendimentos", tipo: "receita", icone: "📈" },
   { nome: "Reembolso", tipo: "receita", icone: "↩️" },
   { nome: "Outras receitas", tipo: "receita", icone: "💰" },
+];
+
+// Para categorias criadas na primeira versão (antes de existirem grupos).
+export const GRUPO_POR_NOME_ANTIGO = {
+  "Mercado": "alimentacao", "Combustível": "alimentacao", "Restaurante e delivery": "alimentacao",
+  "Contas básicas (luz, água, gás)": "fixos", "Internet e telefone": "fixos", "Moradia": "fixos",
+  "Assinaturas": "fixos", "Impostos e taxas": "fixos",
+  "Casa e manutenção": "casa", "Saúde e farmácia": "casa", "Transporte": "casa", "Pets": "casa", "Outros gastos": "casa",
+  "Educação": "pessoal", "Lazer": "pessoal", "Vestuário": "pessoal",
+};
+
+// Contas fixas sugeridas a partir da planilha (valores podem ser ajustados no app).
+// meses: lista de meses (1-12) em que a conta aparece; vazio = todo mês.
+export const FIXAS_PADRAO = [
+  { id: "financiamento", nome: "Financiamento", valor: 82235, dia: 2, categoria: "Moradia e financiamento", meses: [] },
+  { id: "condominio", nome: "Condomínio", valor: 0, dia: 10, categoria: "Condomínio", meses: [] },
+  { id: "luz", nome: "Luz", valor: 11950, dia: 2, categoria: "Contas básicas (luz, água, gás)", meses: [] },
+  { id: "internet", nome: "Internet", valor: 0, dia: 10, categoria: "Internet e telefone", meses: [] },
+  { id: "tim-leon", nome: "Celular Leon (TIM)", valor: 9099, dia: 2, categoria: "Internet e telefone", meses: [] },
+  { id: "tim-ariane", nome: "Celular Ariane (TIM)", valor: 0, dia: 10, categoria: "Internet e telefone", meses: [] },
+  { id: "hospitalar-leon", nome: "Plano hospitalar Leon", valor: 26500, dia: 2, categoria: "Plano de saúde", meses: [] },
+  { id: "hospitalar-ariane", nome: "Plano hospitalar Ariane", valor: 0, dia: 10, categoria: "Plano de saúde", meses: [] },
+  { id: "aapomil", nome: "Aapomil", valor: 0, dia: 10, categoria: "Plano de saúde", meses: [] },
+  { id: "iptu", nome: "IPTU", valor: 0, dia: 10, categoria: "Impostos (IPTU, IPVA)", meses: [] },
+  { id: "ipva", nome: "IPVA", valor: 0, dia: 10, categoria: "Impostos (IPTU, IPVA)", meses: [1, 2, 3] },
 ];
 
 // ---------- Dinheiro ----------
@@ -100,39 +143,79 @@ export function gerarLancamentos(base, conta, modo, vezes, grupoId) {
   }));
 }
 
+// ---------- Grupos e contas fixas ----------
+
+// Grupo de um lançamento: o escolhido no lançamento ou, se não houver, o da categoria.
+export function grupoDe(l, categorias) {
+  if (l.tipo === "receita") return null;
+  return l.grupo || categorias.find((c) => c.nome === l.categoria && c.tipo === "despesa")?.grupo || "casa";
+}
+
+export const fixaValeNoMes = (f, mes) => f.ativa !== false && (!f.meses?.length || f.meses.includes(Number(mes.slice(5, 7))));
+
+// Situação das contas fixas no mês: paga se existe lançamento com fixaId naquele mês.
+export function fixasDoMes(fixas, lancamentos, mes) {
+  return fixas
+    .filter((f) => fixaValeNoMes(f, mes))
+    .map((f) => {
+      const pagamentos = lancamentos.filter((l) => l.fixaId === f.id && l.competencia === mes);
+      return { fixa: f, pagamentos, pago: pagamentos.reduce((s, l) => s + l.valor, 0), paga: pagamentos.length > 0 };
+    })
+    .sort((a, b) => a.paga - b.paga || (a.fixa.dia || 0) - (b.fixa.dia || 0) || a.fixa.nome.localeCompare(b.fixa.nome));
+}
+
 // ---------- Resumo do mês ----------
 
-export function resumoDoMes(lancamentos, mes, pessoas, contas) {
+export function resumoDoMes({ lancamentos, mes, pessoas, contas, categorias, grupos, fixas }) {
   const doMes = lancamentos.filter((l) => l.competencia === mes);
   const r = {
     receitas: 0,
     despesas: 0,
-    porPessoa: Object.fromEntries(pessoas.map((p) => [p.id, { receitas: 0, despesas: 0 }])),
+    receitasPorPessoa: Object.fromEntries(pessoas.map((p) => [p.id, 0])),
+    pessoalPorPessoa: Object.fromEntries(pessoas.map((p) => [p.id, 0])),
     porCategoria: {},
-    porConta: {},
     quantidade: doMes.length,
   };
+  const gastoGrupo = {};
+  const faturas = {};
   for (const l of doMes) {
-    const campo = l.tipo === "receita" ? "receitas" : "despesas";
-    r[campo] += l.valor;
-    if (r.porPessoa[l.pessoa]) r.porPessoa[l.pessoa][campo] += l.valor;
-    if (l.tipo === "despesa") {
-      r.porCategoria[l.categoria || "Sem categoria"] = (r.porCategoria[l.categoria || "Sem categoria"] || 0) + l.valor;
-      if (l.contaId) r.porConta[l.contaId] = (r.porConta[l.contaId] || 0) + l.valor;
+    if (l.tipo === "receita") {
+      r.receitas += l.valor;
+      if (l.pessoa in r.receitasPorPessoa) r.receitasPorPessoa[l.pessoa] += l.valor;
+      continue;
+    }
+    r.despesas += l.valor;
+    const g = grupoDe(l, categorias);
+    gastoGrupo[g] = (gastoGrupo[g] || 0) + l.valor;
+    if (g === "pessoal") {
+      const quem = l.pessoalDe || l.pessoa;
+      if (quem in r.pessoalPorPessoa) r.pessoalPorPessoa[quem] += l.valor;
+    }
+    r.porCategoria[l.categoria || "Sem categoria"] = (r.porCategoria[l.categoria || "Sem categoria"] || 0) + l.valor;
+    const c = contas.find((x) => x.id === l.contaId);
+    if (c?.tipo === "cartao") {
+      const f = (faturas[c.id] ||= { conta: c, total: 0, pessoal: 0, casa: 0 });
+      f.total += l.valor;
+      if (g === "pessoal") f.pessoal += l.valor;
+      else f.casa += l.valor;
     }
   }
   r.saldo = r.receitas - r.despesas;
-
-  // Acerto meio a meio: cada um deveria pagar metade das despesas.
-  if (pessoas.length === 2) {
-    const [a, b] = pessoas;
-    const metade = r.despesas / 2;
-    const dif = Math.round(r.porPessoa[a.id].despesas - metade); // >0: A pagou a mais
-    r.acerto = dif === 0 ? null : dif > 0 ? { de: b.id, para: a.id, valor: dif } : { de: a.id, para: b.id, valor: -dif };
-  }
-  r.faturas = contas
-    .filter((c) => c.tipo === "cartao")
-    .map((c) => ({ conta: c, valor: r.porConta[c.id] || 0 }))
-    .filter((f) => f.valor > 0);
+  r.grupos = [...grupos]
+    .sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
+    .map((g) => {
+      const meta = Math.round((r.receitas * (Number(g.percentual) || 0)) / 100);
+      const gasto = gastoGrupo[g.id] || 0;
+      return { grupo: g, meta, gasto, resta: meta - gasto, uso: meta ? gasto / meta : gasto ? Infinity : 0 };
+    });
+  const conhecidos = new Set(grupos.map((g) => g.id));
+  r.semGrupo = Object.entries(gastoGrupo).filter(([g]) => !conhecidos.has(g)).reduce((s, [, v]) => s + v, 0);
+  r.faturas = Object.values(faturas);
+  const fx = fixasDoMes(fixas, lancamentos, mes);
+  r.fixas = {
+    total: fx.length,
+    pagas: fx.filter((f) => f.paga).length,
+    pendente: fx.filter((f) => !f.paga).reduce((s, f) => s + (f.fixa.valor || 0), 0),
+  };
   return r;
 }

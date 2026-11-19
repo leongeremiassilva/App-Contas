@@ -3,12 +3,12 @@
 Controle financeiro do casal: os dois lançam gastos e receitas de qualquer conta ou cartão, e veem tudo junto.
 
 ## O que faz
-- **Lançamentos** de despesas e receitas, com categoria, data, quem pagou/recebeu e conta/cartão.
-- **Cartão de crédito**: informe o dia de fechamento e vencimento; cada compra cai automaticamente na fatura certa.
-- **Parcelado** (divide o valor em N meses) e **repete todo mês** (contas fixas, assinaturas).
-- **Resumo do mês**: receitas, despesas, saldo, quanto cada um recebeu e pagou, quanto um deve passar ao outro para dividir meio a meio, faturas que vencem no mês e gastos por categoria.
-- Busca e filtros por pessoa, tipo e categoria. Exportação em CSV (abre no Excel).
-- Funciona no celular e pode ser instalado na tela inicial ("Adicionar à tela de início").
+- **Orçamento do mês por grupos** (Fixos, Pessoal, Alimentação, Casa, Poupar), cada um com meta em % da receita: mostra quanto já foi gasto e quanto sobra.
+- **Contas fixas**: lista do mês (financiamento, luz, condomínio, celulares, plano de saúde...) para marcar como paga.
+- **Lançamentos** de despesas e receitas, com categoria, grupo, data e conta/cartão. Gastos pessoais indicam de quem são.
+- **Cartão de crédito**: com o dia de fechamento e vencimento, cada compra cai na fatura certa; a fatura mostra quanto é da casa e quanto é pessoal.
+- **Parcelado** e **repete todo mês**.
+- Busca e filtros. Exportação em CSV (abre no Excel). Instalável na tela inicial do celular.
 
 ## Configuração (feita uma vez)
 1. **Firebase** (conta leon.geremias.silva@gmail.com): criar projeto → Authentication → ativar Google → Firestore Database (modo produção, região `southamerica-east1`) → colar o conteúdo de `firestore.rules` em Regras e publicar → adicionar app Web e copiar as chaves para `js/config.js`.
