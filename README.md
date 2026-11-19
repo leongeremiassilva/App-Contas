@@ -3,12 +3,14 @@
 Controle financeiro do casal: os dois lançam gastos e receitas de qualquer conta ou cartão, e veem tudo junto.
 
 ## O que faz
-- **Orçamento do mês por grupos** (Fixos, Pessoal, Alimentação, Casa, Poupar), cada um com meta em % da receita: mostra quanto já foi gasto e quanto sobra.
-- **Contas fixas**: lista do mês (financiamento, luz, condomínio, celulares, plano de saúde...) para marcar como paga.
-- **Lançamentos** de despesas e receitas, com categoria, grupo, data e conta/cartão. Gastos pessoais indicam de quem são.
-- **Cartão de crédito**: com o dia de fechamento e vencimento, cada compra cai na fatura certa; a fatura mostra quanto é da casa e quanto é pessoal.
-- **Parcelado** e **repete todo mês**.
-- Busca e filtros. Exportação em CSV (abre no Excel). Instalável na tela inicial do celular.
+Funciona nos moldes do Organizze, adaptado ao jeito do casal:
+- **Visão geral**: receita e despesa do mês, botões rápidos (despesa, receita, transferência), saldo das contas, faturas dos cartões, contas a pagar, limite de gastos por grupo e gráfico dos maiores gastos. Botão de olho para esconder os valores.
+- **Lançamentos** pagos ou pendentes, com filtros por grupo, conta, categoria, pessoa e situação.
+- **Transferências** entre contas e **pagamento de fatura** (não contam como gasto).
+- **Cartões**: fatura de cada mês com situação (aberta, fechada, paga, atrasada), divisão casa x pessoal e próximas faturas.
+- **Contas fixas** do mês para marcar como paga.
+- **Limite de gastos**: grupos Fixos, Pessoal, Alimentação, Casa e Poupar, com meta em % da receita.
+- Categorias padrão do Organizze. Exportação em CSV. Menu lateral no computador e barra inferior no celular; instalável na tela inicial.
 
 ## Configuração (feita uma vez)
 1. **Firebase** (conta leon.geremias.silva@gmail.com): criar projeto → Authentication → ativar Google → Firestore Database (modo produção, região `southamerica-east1`) → colar o conteúdo de `firestore.rules` em Regras e publicar → adicionar app Web e copiar as chaves para `js/config.js`.

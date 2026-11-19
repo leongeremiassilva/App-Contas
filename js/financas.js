@@ -9,38 +9,48 @@ export const GRUPOS_PADRAO = [
   { id: "poupar", nome: "Poupar", percentual: 0, icone: "🐷", ordem: 5 },
 ];
 
+// Categorias padrão (mesmas do Organizze), cada despesa ligada a um grupo do orçamento.
 export const CATEGORIAS_PADRAO = [
-  { nome: "Mercado", tipo: "despesa", icone: "🛒", grupo: "alimentacao" },
-  { nome: "Padaria", tipo: "despesa", icone: "🥖", grupo: "alimentacao" },
-  { nome: "Restaurante e delivery", tipo: "despesa", icone: "🍽️", grupo: "alimentacao" },
-  { nome: "Combustível", tipo: "despesa", icone: "⛽", grupo: "alimentacao" },
-  { nome: "Moradia e financiamento", tipo: "despesa", icone: "🏠", grupo: "fixos" },
-  { nome: "Condomínio", tipo: "despesa", icone: "🏢", grupo: "fixos" },
-  { nome: "Contas básicas (luz, água, gás)", tipo: "despesa", icone: "💡", grupo: "fixos" },
-  { nome: "Internet e telefone", tipo: "despesa", icone: "📶", grupo: "fixos" },
-  { nome: "Plano de saúde", tipo: "despesa", icone: "🏥", grupo: "fixos" },
-  { nome: "Impostos (IPTU, IPVA)", tipo: "despesa", icone: "🧾", grupo: "fixos" },
-  { nome: "Assinaturas", tipo: "despesa", icone: "📺", grupo: "fixos" },
-  { nome: "Casa e manutenção", tipo: "despesa", icone: "🔧", grupo: "casa" },
-  { nome: "Móveis e utilidades", tipo: "despesa", icone: "🛋️", grupo: "casa" },
-  { nome: "Farmácia", tipo: "despesa", icone: "💊", grupo: "casa" },
-  { nome: "Bebê e filhos", tipo: "despesa", icone: "🍼", grupo: "casa" },
-  { nome: "Carro e transporte", tipo: "despesa", icone: "🚗", grupo: "casa" },
-  { nome: "Juros e tarifas", tipo: "despesa", icone: "🏦", grupo: "casa" },
-  { nome: "Presentes e eventos", tipo: "despesa", icone: "🎁", grupo: "casa" },
-  { nome: "Pets", tipo: "despesa", icone: "🐾", grupo: "casa" },
-  { nome: "Outros gastos", tipo: "despesa", icone: "📦", grupo: "casa" },
+  { nome: "Alimentação", tipo: "despesa", icone: "🍞", grupo: "alimentacao" },
+  { nome: "Assinaturas e serviços", tipo: "despesa", icone: "📺", grupo: "fixos" },
+  { nome: "Bares e restaurantes", tipo: "despesa", icone: "🍽️", grupo: "alimentacao" },
+  { nome: "Casa", tipo: "despesa", icone: "🏠", grupo: "casa" },
+  { nome: "Compras", tipo: "despesa", icone: "🛍️", grupo: "casa" },
   { nome: "Cuidados pessoais", tipo: "despesa", icone: "💈", grupo: "pessoal" },
-  { nome: "Roupas e calçados", tipo: "despesa", icone: "👕", grupo: "pessoal" },
-  { nome: "Lazer", tipo: "despesa", icone: "🎉", grupo: "pessoal" },
-  { nome: "Educação", tipo: "despesa", icone: "📚", grupo: "pessoal" },
-  { nome: "Poupança e investimentos", tipo: "despesa", icone: "🐷", grupo: "poupar" },
-  { nome: "Salário", tipo: "receita", icone: "💼" },
-  { nome: "Renda extra", tipo: "receita", icone: "✨" },
-  { nome: "Rendimentos", tipo: "receita", icone: "📈" },
-  { nome: "Reembolso", tipo: "receita", icone: "↩️" },
+  { nome: "Dívidas e empréstimos", tipo: "despesa", icone: "🏦", grupo: "casa" },
+  { nome: "Educação", tipo: "despesa", icone: "📚", grupo: "casa" },
+  { nome: "Família e filhos", tipo: "despesa", icone: "🍼", grupo: "casa" },
+  { nome: "Impostos e Taxas", tipo: "despesa", icone: "🧾", grupo: "fixos" },
+  { nome: "Investimentos", tipo: "despesa", icone: "🐷", grupo: "poupar" },
+  { nome: "Lazer e hobbies", tipo: "despesa", icone: "🎉", grupo: "pessoal" },
+  { nome: "Mercado", tipo: "despesa", icone: "🛒", grupo: "alimentacao" },
+  { nome: "Outros", tipo: "despesa", icone: "📦", grupo: "casa" },
+  { nome: "Pets", tipo: "despesa", icone: "🐾", grupo: "casa" },
+  { nome: "Presentes e doações", tipo: "despesa", icone: "🎁", grupo: "casa" },
+  { nome: "Roupas", tipo: "despesa", icone: "👕", grupo: "pessoal" },
+  { nome: "Saúde", tipo: "despesa", icone: "💊", grupo: "casa" },
+  { nome: "Trabalho", tipo: "despesa", icone: "💼", grupo: "pessoal" },
+  { nome: "Transporte", tipo: "despesa", icone: "⛽", grupo: "alimentacao" },
+  { nome: "Viagem", tipo: "despesa", icone: "✈️", grupo: "casa" },
+  { nome: "Empréstimos", tipo: "receita", icone: "🤝" },
+  { nome: "Investimentos", tipo: "receita", icone: "📈" },
   { nome: "Outras receitas", tipo: "receita", icone: "💰" },
+  { nome: "Salário", tipo: "receita", icone: "💼" },
 ];
+
+// Categorias da versão 2 do app -> categoria equivalente do Organizze (versão 3).
+export const CATEGORIA_V2_PARA_V3 = {
+  despesa: {
+    "Padaria": "Alimentação", "Restaurante e delivery": "Bares e restaurantes", "Combustível": "Transporte",
+    "Moradia e financiamento": "Casa", "Condomínio": "Casa", "Contas básicas (luz, água, gás)": "Casa",
+    "Internet e telefone": "Assinaturas e serviços", "Plano de saúde": "Saúde", "Impostos (IPTU, IPVA)": "Impostos e Taxas",
+    "Assinaturas": "Assinaturas e serviços", "Casa e manutenção": "Casa", "Móveis e utilidades": "Compras",
+    "Farmácia": "Saúde", "Bebê e filhos": "Família e filhos", "Carro e transporte": "Transporte",
+    "Juros e tarifas": "Dívidas e empréstimos", "Presentes e eventos": "Presentes e doações", "Outros gastos": "Outros",
+    "Roupas e calçados": "Roupas", "Lazer": "Lazer e hobbies", "Poupança e investimentos": "Investimentos",
+  },
+  receita: { "Renda extra": "Outras receitas", "Rendimentos": "Investimentos", "Reembolso": "Outras receitas" },
+};
 
 // Para categorias criadas na primeira versão (antes de existirem grupos).
 export const GRUPO_POR_NOME_ANTIGO = {
@@ -54,17 +64,17 @@ export const GRUPO_POR_NOME_ANTIGO = {
 // Contas fixas sugeridas a partir da planilha (valores podem ser ajustados no app).
 // meses: lista de meses (1-12) em que a conta aparece; vazio = todo mês.
 export const FIXAS_PADRAO = [
-  { id: "financiamento", nome: "Financiamento", valor: 82235, dia: 2, categoria: "Moradia e financiamento", meses: [] },
-  { id: "condominio", nome: "Condomínio", valor: 0, dia: 10, categoria: "Condomínio", meses: [] },
-  { id: "luz", nome: "Luz", valor: 11950, dia: 2, categoria: "Contas básicas (luz, água, gás)", meses: [] },
-  { id: "internet", nome: "Internet", valor: 0, dia: 10, categoria: "Internet e telefone", meses: [] },
-  { id: "tim-leon", nome: "Celular Leon (TIM)", valor: 9099, dia: 2, categoria: "Internet e telefone", meses: [] },
-  { id: "tim-ariane", nome: "Celular Ariane (TIM)", valor: 0, dia: 10, categoria: "Internet e telefone", meses: [] },
-  { id: "hospitalar-leon", nome: "Plano hospitalar Leon", valor: 26500, dia: 2, categoria: "Plano de saúde", meses: [] },
-  { id: "hospitalar-ariane", nome: "Plano hospitalar Ariane", valor: 0, dia: 10, categoria: "Plano de saúde", meses: [] },
-  { id: "aapomil", nome: "Aapomil", valor: 0, dia: 10, categoria: "Plano de saúde", meses: [] },
-  { id: "iptu", nome: "IPTU", valor: 0, dia: 10, categoria: "Impostos (IPTU, IPVA)", meses: [] },
-  { id: "ipva", nome: "IPVA", valor: 0, dia: 10, categoria: "Impostos (IPTU, IPVA)", meses: [1, 2, 3] },
+  { id: "financiamento", nome: "Financiamento", valor: 82235, dia: 2, categoria: "Casa", meses: [] },
+  { id: "condominio", nome: "Condomínio", valor: 0, dia: 10, categoria: "Casa", meses: [] },
+  { id: "luz", nome: "Luz", valor: 11950, dia: 2, categoria: "Casa", meses: [] },
+  { id: "internet", nome: "Internet", valor: 0, dia: 10, categoria: "Assinaturas e serviços", meses: [] },
+  { id: "tim-leon", nome: "Celular Leon (TIM)", valor: 9099, dia: 2, categoria: "Assinaturas e serviços", meses: [] },
+  { id: "tim-ariane", nome: "Celular Ariane (TIM)", valor: 0, dia: 10, categoria: "Assinaturas e serviços", meses: [] },
+  { id: "hospitalar-leon", nome: "Plano hospitalar Leon", valor: 26500, dia: 2, categoria: "Saúde", meses: [] },
+  { id: "hospitalar-ariane", nome: "Plano hospitalar Ariane", valor: 0, dia: 10, categoria: "Saúde", meses: [] },
+  { id: "aapomil", nome: "Aapomil", valor: 0, dia: 10, categoria: "Saúde", meses: [] },
+  { id: "iptu", nome: "IPTU", valor: 0, dia: 10, categoria: "Impostos e Taxas", meses: [] },
+  { id: "ipva", nome: "IPVA", valor: 0, dia: 10, categoria: "Impostos e Taxas", meses: [1, 2, 3] },
 ];
 
 // ---------- Dinheiro ----------
@@ -147,7 +157,7 @@ export function gerarLancamentos(base, conta, modo, vezes, grupoId) {
 
 // Grupo de um lançamento: o escolhido no lançamento ou, se não houver, o da categoria.
 export function grupoDe(l, categorias) {
-  if (l.tipo === "receita") return null;
+  if (l.tipo !== "despesa") return null;
   return l.grupo || categorias.find((c) => c.nome === l.categoria && c.tipo === "despesa")?.grupo || "casa";
 }
 
@@ -174,11 +184,12 @@ export function resumoDoMes({ lancamentos, mes, pessoas, contas, categorias, gru
     receitasPorPessoa: Object.fromEntries(pessoas.map((p) => [p.id, 0])),
     pessoalPorPessoa: Object.fromEntries(pessoas.map((p) => [p.id, 0])),
     porCategoria: {},
-    quantidade: doMes.length,
+    quantidade: doMes.filter((l) => l.tipo !== "transferencia").length,
   };
   const gastoGrupo = {};
   const faturas = {};
   for (const l of doMes) {
+    if (l.tipo === "transferencia") continue;
     if (l.tipo === "receita") {
       r.receitas += l.valor;
       if (l.pessoa in r.receitasPorPessoa) r.receitasPorPessoa[l.pessoa] += l.valor;
@@ -218,4 +229,79 @@ export function resumoDoMes({ lancamentos, mes, pessoas, contas, categorias, gru
     pendente: fx.filter((f) => !f.paga).reduce((s, f) => s + (f.fixa.valor || 0), 0),
   };
   return r;
+}
+
+// ---------- Pago / pendente, saldos e faturas ----------
+
+// Lançamentos antigos não têm o campo "pago": contam como pagos.
+export const estaPago = (l) => l.pago !== false;
+
+// Diferença no dia (YYYY-MM-DD) para o mês/dia de referência
+export function dataDoMes(mes, dia) {
+  const [a, m] = mes.split("-").map(Number);
+  const ultimo = new Date(a, m, 0).getDate();
+  return `${mes}-${String(Math.min(Number(dia) || 1, ultimo)).padStart(2, "0")}`;
+}
+
+// Saldo de cada conta (bancária/dinheiro). Cartões não têm saldo: têm fatura.
+//   atual: só o que já foi pago
+//   previsto: inclui pendentes com mês de referência até "mesLimite"
+export function saldosDasContas(contas, lancamentos, mesLimite) {
+  const r = {};
+  for (const c of contas) {
+    if (c.tipo === "cartao") continue;
+    r[c.id] = { atual: c.saldoInicial || 0, previsto: c.saldoInicial || 0 };
+  }
+  for (const l of lancamentos) {
+    const mov = [];
+    if (l.tipo === "receita") mov.push([l.contaId, l.valor]);
+    else if (l.tipo === "despesa") mov.push([l.contaId, -l.valor]);
+    else if (l.tipo === "transferencia") mov.push([l.contaId, -l.valor], [l.contaDestinoId, l.valor]);
+    for (const [id, v] of mov) {
+      if (!r[id]) continue;
+      if (estaPago(l)) { r[id].atual += v; r[id].previsto += v; }
+      else if (!mesLimite || (l.competencia || "") <= mesLimite) r[id].previsto += v;
+    }
+  }
+  return r;
+}
+
+// Fatura de um cartão no mês de vencimento "mes".
+export function faturaDoCartao(cartao, mes, lancamentos, hoje = hojeISO()) {
+  const itens = lancamentos.filter((l) => l.contaId === cartao.id && l.competencia === mes && l.tipo !== "transferencia");
+  const total = itens.reduce((s, l) => s + (l.tipo === "receita" ? -l.valor : l.valor), 0);
+  const pagamentos = lancamentos.filter((l) => l.tipo === "transferencia" && l.contaDestinoId === cartao.id && l.faturaDe === mes && estaPago(l));
+  const pago = pagamentos.reduce((s, l) => s + l.valor, 0);
+  const vence = Number(cartao.vencimento || 1);
+  const fecha = Number(cartao.fechamento || 1);
+  const vencimento = dataDoMes(mes, vence);
+  const fechamento = dataDoMes(vence > fecha ? mes : somarMeses(mes, -1), fecha);
+  let status = hoje >= fechamento ? "fechada" : "aberta";
+  if (total > 0 && pago >= total) status = "paga";
+  else if (status === "fechada" && hoje > vencimento && total > pago) status = "atrasada";
+  return { cartao, mes, itens, total, pago, falta: Math.max(0, total - pago), pagamentos, vencimento, fechamento, status };
+}
+
+// O que falta pagar no mês: lançamentos pendentes, contas fixas não pagas e faturas em aberto.
+export function contasAPagar({ lancamentos, fixas, contas, mes, hoje = hojeISO() }) {
+  const itens = [];
+  for (const l of lancamentos) {
+    if (l.tipo !== "despesa" || estaPago(l) || l.competencia !== mes) continue;
+    if (contas.find((c) => c.id === l.contaId)?.tipo === "cartao") continue;
+    itens.push({ tipo: "lancamento", id: l.id, nome: l.descricao || l.categoria, valor: l.valor, vence: l.data || dataDoMes(mes, 1), lanc: l });
+  }
+  for (const f of fixasDoMes(fixas, lancamentos, mes)) {
+    if (!f.paga) itens.push({ tipo: "fixa", id: f.fixa.id, nome: f.fixa.nome, valor: f.fixa.valor || 0, vence: dataDoMes(mes, f.fixa.dia), fixa: f.fixa });
+  }
+  for (const c of contas.filter((x) => x.tipo === "cartao")) {
+    const fat = faturaDoCartao(c, mes, lancamentos, hoje);
+    if (fat.falta > 0) itens.push({ tipo: "fatura", id: c.id, nome: `Fatura ${c.nome}`, valor: fat.falta, vence: fat.vencimento, fatura: fat });
+  }
+  return itens
+    .map((i) => ({ ...i, atrasada: i.vence < hoje }))
+    .sort((a, b) => a.vence.localeCompare(b.vence));
+}
+
+export function aReceber(lancamentos, mes) {
+  return lancamentos.filter((l) => l.tipo === "receita" && !estaPago(l) && l.competencia === mes);
 }
