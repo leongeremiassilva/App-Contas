@@ -3,8 +3,8 @@ import { pessoas } from "./config.js";
 import { moeda, mesAtual, CATEGORIAS_PADRAO } from "./financas.js";
 import { svg, existeIcone, ICONE_GRUPO } from "./icones.js";
 
-export const COLECOES = ["lancamentos", "contas", "categorias", "grupos", "fixas", "config"];
-export const FILTRO_VAZIO = { grupo: "", pessoa: "", categoria: "", conta: "", status: "", busca: "" };
+export const COLECOES = ["lancamentos", "contas", "categorias", "grupos", "fixas", "metas", "config"];
+export const FILTRO_VAZIO = { grupo: "", pessoa: "", categoria: "", conta: "", status: "", tag: "", busca: "" };
 
 export const estado = {
   usuario: null,
@@ -14,12 +14,16 @@ export const estado = {
   categorias: [],
   grupos: [],
   fixas: [],
+  metas: [],
   config: [],
   carregado: Object.fromEntries(COLECOES.map((c) => [c, false])),
   mes: mesAtual(),
   aba: "inicio",
   cartaoAberto: null,
   gerenciarFixas: false,
+  rel: { aba: "fluxo", meses: 6, categoria: null, tag: null },
+  importacao: null,
+  diasAviso: Number(lerPreferencia("diasAviso")) || 5,
   filtro: { ...FILTRO_VAZIO },
   ocultar: lerPreferencia("ocultarValores") === "1",
   tema: lerPreferencia("tema") || "auto", // "claro" | "escuro" | "auto" (segue o aparelho)
@@ -87,3 +91,9 @@ export const centavosParaTexto = (v) => (v ? (v / 100).toFixed(2).replace(".", "
 
 // Valor em reais, respeitando o "esconder valores" (olho).
 export const dinheiro = (v) => (estado.ocultar ? "R$ •••••" : moeda(v));
+
+// Tags e subcategorias já usadas (para sugestões).
+export const todasAsTags = () => [...new Set(estado.lancamentos.flatMap((l) => l.tags || []))].sort((a, b) => a.localeCompare(b));
+export const subcategoriasDe = (nome, tipo = "despesa") =>
+  estado.categorias.find((c) => c.nome === nome && c.tipo === tipo)?.subcategorias || [];
+export const meta = (id) => estado.metas.find((m) => m.id === id);

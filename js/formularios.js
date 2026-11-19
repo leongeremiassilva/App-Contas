@@ -1,13 +1,13 @@
 // Formulários (janelas) de lançamento, transferência, conta, cartão, categoria e conta fixa.
 import * as store from "./store.js";
 import {
-  estado, pessoas, pessoa, conta, contasBancarias, cartoes, grupo, gruposOrdenados, infoCategoria,
+  estado, pessoas, pessoa, conta, contasBancarias, cartoes, grupo, gruposOrdenados, infoCategoria, todasAsTags, subcategoriasDe,
   TIPOS_CONTA, NOMES_MESES, centavosParaTexto,
 } from "./estado.js";
 import { $$, esc, abrirModal, fecharModal, confirmar, toast, erroMsg } from "./ui.js";
 import { svg, ICONES_CATEGORIA } from "./icones.js";
 import {
-  moeda, paraCentavos, hojeISO, mesAtual, somarMeses, nomeMes, competencia, gerarLancamentos, grupoDe, estaPago,
+  moeda, paraCentavos, hojeISO, mesAtual, somarMeses, nomeMes, competencia, gerarLancamentos, grupoDe, estaPago, normalizarTag,
 } from "./financas.js";
 
 const opcoesContas = (lista, selecionada, vazia = "") => `
@@ -52,7 +52,10 @@ export function formLancamento(l, pre = {}) {
       <label>Descrição <input name="descricao" placeholder="Ex.: Muffato, Posto, Conta de luz" value="${esc(v.descricao || "")}" list="sugestoes"></label>
       <datalist id="sugestoes">${[...new Set(estado.lancamentos.map((x) => x.descricao).filter(Boolean))].slice(0, 300).map((d) => `<option value="${esc(d)}">`).join("")}</datalist>
 
-      <label class="nao-transf">Categoria <select name="categoria"></select></label>
+      <div class="duas nao-transf">
+        <label>Categoria <select name="categoria"></select></label>
+        <label class="so-sub">Subcategoria <select name="subcategoria"></select></label>
+      </div>
       <div class="duas so-despesa">
         <label>Grupo <select name="grupo">${gruposOrdenados().map((g) => `<option value="${g.id}">${esc(g.nome)}</option>`).join("")}</select></label>
         <label class="so-pessoal">Pessoal de <select name="pessoalDe">${pessoas.map((p) => `<option value="${p.id}" ${(v.pessoalDe || v.pessoa || estado.eu.id) === p.id ? "selected" : ""}>${esc(p.nome)}</option>`).join("")}</select></label>
@@ -88,6 +91,14 @@ export function formLancamento(l, pre = {}) {
       <label class="vezes" hidden>Quantas vezes / meses <input type="number" name="vezes" min="2" max="120" value="2"></label>` :
       l?.totalParcelas ? `<p class="sub">${l.recorrencia === "fixo" ? "Repetição" : "Parcela"} ${l.parcela} de ${l.totalParcelas}</p>` : ""}
       <p class="info-competencia sub"></p>
+      <label class="nao-transf">Tags <small>(opcional, separe por vírgula. Ex.: viagem praia, reforma)</small>
+        <input name="tags" list="lista-tags" value="${esc((v.tags || []).join(", "))}" placeholder="sem tags">
+      </label>
+      <datalist id="lista-tags">${todasAsTags().map((t) => `<option value="${esc(t)}">`).join("")}</datalist>
+      ${estado.metas.length || v.metaId ? `
+      <label class="nao-transf so-meta"><span class="rotulo-meta">Meta de economia</span>
+        <select name="metaId"><option value="">— nenhuma —</option>${estado.metas.filter((x) => !x.arquivada || x.id === v.metaId).map((x) => `<option value="${x.id}" ${v.metaId === x.id ? "selected" : ""}>${esc(x.nome)}</option>`).join("")}</select>
+      </label>` : ""}
       <label>Observação <input name="obs" value="${esc(v.obs || "")}"></label>
       <div class="acoes">
         ${novo ? "" : `<button type="button" class="btn perigo" id="excluir">Excluir</button>`}
@@ -112,7 +123,15 @@ export function formLancamento(l, pre = {}) {
         }).join("");
       }
       if ([...f.categoria.options].some((o) => o.value === atual)) f.categoria.value = atual;
+      preencherSubs();
       atualizar();
+    };
+    const preencherSubs = () => {
+      const subs = f.querySelector("[name=tipo]:checked").value === "transferencia" ? [] : subcategoriasDe(f.categoria.value, f.querySelector("[name=tipo]:checked").value);
+      const atual = f.subcategoria.value || v.subcategoria || "";
+      f.subcategoria.innerHTML = `<option value="">—</option>` + subs.map((x) => `<option ${x === atual ? "selected" : ""}>${esc(x)}</option>`).join("");
+      if (atual && !subs.includes(atual)) f.subcategoria.insertAdjacentHTML("beforeend", `<option selected>${esc(atual)}</option>`);
+      m.querySelector(".so-sub").hidden = !f.subcategoria.options.length || f.subcategoria.options.length < 2;
     };
     const atualizar = () => {
       const t = tipoAtual();
@@ -127,6 +146,8 @@ export function formLancamento(l, pre = {}) {
       $$(".so-pessoal", m).forEach((e) => (e.hidden = t !== "despesa" || f.grupo.value !== "pessoal"));
       $$(".so-fatura", m).forEach((e) => (e.hidden = t !== "transferencia" || destino?.tipo !== "cartao"));
       $$(".so-pago", m).forEach((e) => (e.hidden = noCartao));
+      const rm = m.querySelector(".rotulo-meta");
+      if (rm) rm.textContent = t === "receita" ? "Resgate de meta de economia" : "Guardar para meta de economia";
       m.querySelector(".rotulo-pago").textContent = t === "receita" ? "Recebido" : t === "transferencia" ? "Já foi feita" : "Pago";
       const info = m.querySelector(".info-competencia");
       info.textContent = f.data.value && noCartao ? `Entra na fatura de ${nomeMes(competencia(f.data.value, c))}.` : "";
@@ -137,7 +158,7 @@ export function formLancamento(l, pre = {}) {
     f.grupo.value = grupoInicial || grupoDaCategoria() || "casa";
     atualizar();
     $$("[name=tipo]", f).forEach((r) => r.addEventListener("change", preencherCategorias));
-    f.categoria.addEventListener("change", () => { const g = grupoDaCategoria(); if (g) f.grupo.value = g; atualizar(); });
+    f.categoria.addEventListener("change", () => { const g = grupoDaCategoria(); if (g) f.grupo.value = g; f.subcategoria.value = ""; preencherSubs(); atualizar(); });
     f.grupo.addEventListener("change", atualizar);
     f.contaId.addEventListener("change", () => {
       const c = conta(f.contaId.value);
@@ -158,16 +179,20 @@ export function formLancamento(l, pre = {}) {
         f.querySelector(`[name=tipo][value=${ant.tipo}]`).checked = true;
         preencherCategorias();
         f.categoria.value = ant.categoria;
+        preencherSubs();
+        if (ant.subcategoria) f.subcategoria.value = ant.subcategoria;
         if (ant.tipo === "despesa") f.grupo.value = grupoDe(ant, estado.categorias);
         atualizar();
       }
     });
-    f.addEventListener("submit", (e) => { e.preventDefault(); salvarLancamento(f, l, doGrupo, v.fixaId); });
+    f.addEventListener("submit", (e) => { e.preventDefault(); salvarLancamento(f, l, doGrupo, v.fixaId, v.mesFixa); });
     m.querySelector("#excluir")?.addEventListener("click", () => excluirLancamento(l, doGrupo));
   });
 }
 
-async function salvarLancamento(f, original, doGrupo, fixaId) {
+const lerTags = (texto) => [...new Set(String(texto || "").split(",").map(normalizarTag).filter(Boolean))];
+
+async function salvarLancamento(f, original, doGrupo, fixaId, mesFixa) {
   const valor = paraCentavos(f.valor.value);
   if (!(valor > 0)) return toast("Informe um valor válido.");
   const tipo = f.querySelector("[name=tipo]:checked").value;
@@ -183,6 +208,9 @@ async function salvarLancamento(f, original, doGrupo, fixaId) {
       valor,
       descricao: f.descricao.value.trim(),
       categoria: f.categoria.value,
+      subcategoria: f.subcategoria.value || null,
+      tags: lerTags(f.tags.value),
+      metaId: f.metaId?.value || null,
       grupo: grupoEscolhido,
       pessoalDe: grupoEscolhido === "pessoal" ? f.pessoalDe.value : null,
       data: f.data.value,
@@ -203,7 +231,7 @@ async function salvarLancamento(f, original, doGrupo, fixaId) {
       );
       // repetições em meses futuros ficam pendentes (menos no cartão, que vai na fatura)
       lista.forEach((x, i) => { if (i > 0 && !noCartao) x.pago = base.pago && x.competencia <= mesAtual(); });
-      if (fixaId) lista[0].competencia = estado.mes; // conta fixa vale no mês aberto na tela
+      if (fixaId) lista[0].competencia = mesFixa || estado.mes; // conta fixa vale no mês dela
       await store.addMany("lancamentos", lista);
       fecharModal();
       toast(fixaId ? "Pagamento registrado." : lista.length > 1 ? `${lista.length} lançamentos criados.` : "Lançamento salvo.");
@@ -262,6 +290,7 @@ async function salvarTransferencia(f, original, valor) {
     obs: f.obs.value.trim(),
     pago: f.pago.checked,
     fixaId: null, parcela: null, totalParcelas: null, recorrencia: null, grupoId: null,
+    subcategoria: null, tags: [], metaId: null,
   };
   if (original) await store.update("lancamentos", original.id, { ...dados, alteradoPor: estado.eu.id, alteradoEm: Date.now() });
   else await store.add("lancamentos", { ...dados, criadoPor: estado.eu.id, criadoEm: Date.now() });
@@ -314,13 +343,13 @@ export function pagarFatura(fat) {
   });
 }
 
-export function pagarFixa(f) {
+export function pagarFixa(f, mes = estado.mes) {
   const dia = String(Math.min(f.dia || 1, 28)).padStart(2, "0");
   const hoje = hojeISO();
-  const data = hoje.slice(0, 7) === estado.mes ? hoje : `${estado.mes}-${dia}`;
+  const data = hoje.slice(0, 7) === mes || hoje < `${mes}-${dia}` ? hoje : `${mes}-${dia}`;
   formLancamento(null, {
-    tipo: "despesa", valor: f.valor, descricao: f.nome, categoria: f.categoria,
-    grupo: "fixos", data, fixaId: f.id, pago: true,
+    tipo: "despesa", valor: f.valor, descricao: f.nome, categoria: f.categoria, subcategoria: f.subcategoria || null,
+    grupo: "fixos", data, fixaId: f.id, mesFixa: mes, pago: true,
   });
 }
 
@@ -411,6 +440,9 @@ export function formCategoria(c) {
         <legend>Ícone</legend>
         ${ICONES_CATEGORIA.map((ic) => `<label title="${ic}"><input type="radio" name="icone" value="${ic}" ${info.icone === ic ? "checked" : ""}><span>${svg(ic)}</span></label>`).join("")}
       </fieldset>
+      <label>Subcategorias <small>(opcional, separe por vírgula)</small>
+        <input name="subcategorias" value="${esc((c.subcategorias || []).join(", "))}" placeholder="Ex.: Luz, Água, Condomínio">
+      </label>
       <fieldset class="seletor-cor">
         <legend>Cor</legend>
         ${CORES_CATEGORIA.map((cor) => `<label><input type="radio" name="cor" value="${cor}" ${info.cor === cor ? "checked" : ""}><span style="background:${cor}"></span></label>`).join("")}
@@ -438,6 +470,7 @@ export function formCategoria(c) {
         cor: f.querySelector("[name=cor]:checked")?.value || "#0ea5e9",
         tipo: f.tipo.value,
         grupo: f.tipo.value === "despesa" ? f.grupo.value : null,
+        subcategorias: [...new Set(f.subcategorias.value.split(",").map((x) => x.trim()).filter(Boolean))],
       };
       try {
         if (novo) await store.add("categorias", dados);
@@ -480,6 +513,7 @@ export function formFixa(f) {
         <label>Dia do vencimento <input type="number" name="dia" min="1" max="31" value="${f?.dia || ""}"></label>
       </div>
       <label>Categoria <select name="categoria">${cats.map((c) => `<option value="${esc(c.nome)}" ${f?.categoria === c.nome ? "selected" : ""}>${esc(c.nome)} (${esc(grupo(c.grupo).nome)})</option>`).join("")}</select></label>
+      <label>Subcategoria <select name="subcategoria"></select></label>
       <fieldset class="meses">
         <legend>Em quais meses? <small>(nenhum marcado = todo mês)</small></legend>
         ${NOMES_MESES.map((n, i) => `<label><input type="checkbox" name="mes" value="${i + 1}" ${meses.includes(i + 1) ? "checked" : ""}><span>${n}</span></label>`).join("")}
@@ -492,6 +526,13 @@ export function formFixa(f) {
       </div>
     </form>`, (m) => {
     const form = m.querySelector("form");
+    const subs = () => {
+      const lista = subcategoriasDe(form.categoria.value);
+      const atual = form.subcategoria.value || f?.subcategoria || "";
+      form.subcategoria.innerHTML = `<option value="">—</option>` + lista.map((x) => `<option ${x === atual ? "selected" : ""}>${esc(x)}</option>`).join("");
+    };
+    subs();
+    form.categoria.addEventListener("change", () => { form.subcategoria.value = ""; subs(); });
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const valor = form.valor.value.trim() ? paraCentavos(form.valor.value) : 0;
@@ -501,6 +542,7 @@ export function formFixa(f) {
         valor,
         dia: Number(form.dia.value) || null,
         categoria: form.categoria.value,
+        subcategoria: form.subcategoria.value || null,
         meses: $$("[name=mes]:checked", form).map((i) => Number(i.value)),
         ativa: form.ativa.checked,
       };
@@ -523,14 +565,14 @@ export function formFixa(f) {
 // ---------- Exportação ----------
 
 export function exportarCSV() {
-  const cab = ["data", "mes_referencia", "tipo", "situacao", "grupo", "pessoal_de", "descricao", "categoria", "valor", "conta", "conta_destino", "dono_da_conta", "parcela", "observacao"];
+  const cab = ["data", "mes_referencia", "tipo", "situacao", "grupo", "pessoal_de", "descricao", "categoria", "subcategoria", "tags", "valor", "conta", "conta_destino", "dono_da_conta", "parcela", "observacao"];
   const linhas = [...estado.lancamentos]
     .sort((a, b) => (a.data || "").localeCompare(b.data || ""))
     .map((l) => {
       const g = grupoDe(l, estado.categorias);
       return [
         l.data, l.competencia, l.tipo, estaPago(l) ? "pago" : "pendente", g ? grupo(g).nome : "", l.pessoalDe ? pessoa(l.pessoalDe).nome : "",
-        l.descricao, l.categoria || "", (l.valor / 100).toFixed(2).replace(".", ","),
+        l.descricao, l.categoria || "", l.subcategoria || "", (l.tags || []).join(", "), (l.valor / 100).toFixed(2).replace(".", ","),
         conta(l.contaId)?.nome || "", conta(l.contaDestinoId)?.nome || "", pessoa(l.pessoa).nome,
         l.totalParcelas ? `${l.parcela}/${l.totalParcelas}` : "", l.obs || "",
       ];
@@ -540,4 +582,75 @@ export function exportarCSV() {
   a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
   a.download = `contas-da-casa-${hojeISO()}.csv`;
   a.click();
+}
+
+// ---------- Metas de economia ----------
+
+const CORES_META = ["#0d9488", "#2563eb", "#7c3aed", "#db2777", "#ea580c", "#ca8a04", "#16a34a", "#475569"];
+
+export function formMeta(mt) {
+  const nova = !mt;
+  const cor = mt?.cor || CORES_META[estado.metas.length % CORES_META.length];
+  abrirModal(`
+    <form autocomplete="off">
+      <h2>${nova ? "Nova meta de economia" : "Editar meta"}</h2>
+      <label>Nome <input name="nome" required placeholder="Ex.: Viagem de férias, Reserva de emergência" value="${esc(mt?.nome || "")}"></label>
+      <div class="duas">
+        <label>Quanto quer juntar <input name="valorAlvo" inputmode="decimal" required placeholder="0,00" value="${centavosParaTexto(mt?.valorAlvo)}"></label>
+        <label>Até quando <small>(opcional)</small><input type="month" name="prazo" value="${mt?.prazo || ""}"></label>
+      </div>
+      <label>Já tem guardado <small>(antes de usar o app)</small>
+        <input name="valorInicial" inputmode="decimal" placeholder="0,00" value="${centavosParaTexto(mt?.valorInicial)}">
+      </label>
+      <fieldset class="seletor-cor">
+        <legend>Cor</legend>
+        ${CORES_META.map((c) => `<label><input type="radio" name="cor" value="${c}" ${cor === c ? "checked" : ""}><span style="background:${c}"></span></label>`).join("")}
+      </fieldset>
+      ${nova ? "" : `<label class="check"><input type="checkbox" name="arquivada" ${mt.arquivada ? "checked" : ""}> Arquivar (some da lista principal)</label>`}
+      <div class="acoes">
+        ${nova ? "" : `<button type="button" class="btn perigo" id="excluir">Excluir</button>`}
+        <button type="button" class="btn link" data-fechar>Cancelar</button>
+        <button type="submit" class="btn primario">Salvar</button>
+      </div>
+    </form>`, (m) => {
+    const f = m.querySelector("form");
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const alvo = paraCentavos(f.valorAlvo.value);
+      if (!(alvo > 0)) return toast("Informe quanto quer juntar.");
+      const dados = {
+        nome: f.nome.value.trim(),
+        valorAlvo: alvo,
+        prazo: f.prazo.value || null,
+        valorInicial: f.valorInicial.value.trim() ? paraCentavos(f.valorInicial.value) || 0 : 0,
+        cor: f.querySelector("[name=cor]:checked")?.value || cor,
+        arquivada: f.arquivada?.checked || false,
+      };
+      try {
+        if (nova) await store.add("metas", { ...dados, criadoEm: Date.now(), criadoPor: estado.eu.id });
+        else await store.update("metas", mt.id, dados);
+        fecharModal();
+        toast("Meta salva.");
+      } catch (err) { toast("Erro: " + erroMsg(err)); }
+    });
+    m.querySelector("#excluir")?.addEventListener("click", async () => {
+      const usados = estado.lancamentos.filter((l) => l.metaId === mt.id).length;
+      const r = await confirmar(`Excluir a meta "${esc(mt.nome)}"?${usados ? ` Os ${usados} lançamento(s) dela continuam, só deixam de estar ligados à meta.` : ""}`, [{ texto: "Excluir", valor: true, classe: "perigo" }]);
+      if (!r) return;
+      await Promise.all(estado.lancamentos.filter((l) => l.metaId === mt.id).map((l) => store.update("lancamentos", l.id, { metaId: null })));
+      await store.remove("metas", mt.id);
+      fecharModal();
+      toast("Meta excluída.");
+    });
+  });
+}
+
+// Guardar dinheiro na meta = despesa no grupo Poupar ligada à meta.
+export function guardarNaMeta(mt) {
+  formLancamento(null, { tipo: "despesa", categoria: "Investimentos", grupo: "poupar", metaId: mt.id, descricao: `Guardar: ${mt.nome}`, pago: true });
+}
+
+// Resgatar da meta = receita ligada à meta.
+export function resgatarDaMeta(mt) {
+  formLancamento(null, { tipo: "receita", categoria: "Investimentos", metaId: mt.id, descricao: `Resgate: ${mt.nome}`, pago: true });
 }

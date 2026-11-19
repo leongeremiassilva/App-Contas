@@ -4,15 +4,17 @@ import { estado, pessoas, pessoa, COLECOES, FILTRO_VAZIO, gravarPreferencia, apl
 import { svg } from "./icones.js";
 import { $, $$, esc, toast, abrirModal, erroMsg } from "./ui.js";
 import { TELAS, ligarEventos } from "./telas.js";
+import { avisosAtuais, abrirAvisos } from "./telas-extras.js";
 import { formLancamento, exportarCSV } from "./formularios.js";
 import {
-  GRUPOS_PADRAO, CATEGORIAS_PADRAO, GRUPO_POR_NOME_ANTIGO, CATEGORIA_V2_PARA_V3, FIXAS_PADRAO,
+  GRUPOS_PADRAO, CATEGORIAS_PADRAO, GRUPO_POR_NOME_ANTIGO, CATEGORIA_V2_PARA_V3, FIXAS_PADRAO, SUBCATEGORIAS_PADRAO, SUBCATEGORIA_FIXAS,
   mesAtual, somarMeses, nomeMes, grupoDe,
 } from "./financas.js";
 
-const VERSAO_DADOS = 3;
-const MENU_LATERAL = ["inicio", "lancamentos", "fixas", "limites", "cartoes", "contas", "categorias"];
-const MENU_INFERIOR = ["inicio", "lancamentos", "fixas", "cartoes", "mais"];
+const VERSAO_DADOS = 4;
+const MENU_LATERAL = ["inicio", "lancamentos", "fixas", "relatorios", "limites", "metas", "cartoes", "contas", "categorias", "importar"];
+const MENU_INFERIOR = ["inicio", "lancamentos", "fixas", "relatorios", "mais"];
+const DENTRO_DE_MAIS = ["cartoes", "contas", "categorias", "limites", "metas", "importar"];
 
 // ---------- Inicialização e login ----------
 
@@ -99,6 +101,7 @@ function abrirApp() {
           <button class="icone" id="mes-prox" aria-label="Próximo mês">${svg("direita")}</button>
         </div>
         <span class="titulo-topo"></span>
+        <button class="sino" id="btn-avisos" title="Avisos de vencimento">${svg("sino")}<span class="contador" hidden></span></button>
         <button class="avatar so-celular" id="btn-perfil" style="background:${estado.eu.cor}" title="${esc(estado.usuario.email)}">${esc(estado.eu.nome[0])}</button>
       </header>
       <main id="conteudo"><p class="carregando">Carregando…</p></main>
@@ -116,6 +119,10 @@ function abrirApp() {
   $("#sair-lateral").onclick = () => store.sair();
   $("#exportar-lateral").onclick = exportarCSV;
   $("#tema-lateral").onclick = trocarTema;
+  $("#btn-avisos").onclick = abrirAvisos;
+  document.addEventListener("avisos-mudaram", render);
+  let tamanho = window.innerWidth;
+  window.addEventListener("resize", () => { if (Math.abs(window.innerWidth - tamanho) > 80) { tamanho = window.innerWidth; if (estado.aba === "relatorios") render(); } });
   $$("[data-aba]").forEach((b) => (b.onclick = () => irPara(b.dataset.aba)));
 
   const erro = (e) => {
@@ -196,9 +203,15 @@ function render() {
   $("#mes-hoje").textContent = nomeMes(estado.mes);
   $(".seletor-mes").hidden = !tela.usaMes;
   $(".titulo-topo").textContent = tela.usaMes ? "" : tela.titulo;
+  document.body.classList.toggle("sem-fab", estado.aba === "importar");
   $$("[data-aba]").forEach((b) => b.classList.toggle("ativa",
-    b.dataset.aba === estado.aba || (b.dataset.aba === "mais" && ["contas", "categorias", "limites"].includes(estado.aba))));
+    b.dataset.aba === estado.aba || (b.dataset.aba === "mais" && DENTRO_DE_MAIS.includes(estado.aba))));
   if (!tudoCarregado() || versaoDados() < VERSAO_DADOS) return;
+  const av = avisosAtuais();
+  const cont = $("#btn-avisos .contador");
+  cont.hidden = !av.length;
+  cont.textContent = av.length;
+  $("#btn-avisos").classList.toggle("atrasado", av.some((a) => a.atrasada));
   const el = $("#conteudo");
   el.innerHTML = tela.html();
   ligarEventos(el, nav);
@@ -214,7 +227,10 @@ async function prepararDados() {
   preparando = true;
   try {
     if (versao < 2) await primeiraPreparacao();
-    else if (versao < 3) await migrarParaCategoriasOrganizze();
+    else {
+      if (versao < 3) await migrarParaCategoriasOrganizze();
+      if (versao < 4) await adicionarSubcategorias();
+    }
     await store.set("config", "versao", { dados: VERSAO_DADOS, em: Date.now(), por: estado.eu.id });
     preparado = true;
   } catch (e) {
@@ -243,11 +259,11 @@ async function primeiraPreparacao() {
   }
   const ficam = new Set(estado.categorias.filter((c) => usadas.has(c.nome)).map((c) => `${c.tipo}:${c.nome}`));
   const faltando = CATEGORIAS_PADRAO.filter((c) => !ficam.has(`${c.tipo}:${c.nome}`));
-  if (faltando.length) await store.addMany("categorias", faltando);
+  if (faltando.length) await store.addMany("categorias", faltando.map(comSubcategorias));
   for (const f of FIXAS_PADRAO) {
     if (!estado.fixas.some((x) => x.id === f.id)) {
       const { id, ...dados } = f;
-      await store.set("fixas", id, { ...dados, ativa: true });
+      await store.set("fixas", id, { ...dados, subcategoria: SUBCATEGORIA_FIXAS[id] || null, ativa: true });
     }
   }
 }
@@ -272,7 +288,21 @@ async function migrarParaCategoriasOrganizze() {
     else existentes.add(`${c.tipo}:${c.nome}`);
   }
   const faltando = CATEGORIAS_PADRAO.filter((c) => !existentes.has(`${c.tipo}:${c.nome}`));
-  if (faltando.length) await store.addMany("categorias", faltando);
+  if (faltando.length) await store.addMany("categorias", faltando.map(comSubcategorias));
+}
+
+const comSubcategorias = (c) => (c.tipo === "despesa" && SUBCATEGORIAS_PADRAO[c.nome] ? { ...c, subcategorias: SUBCATEGORIAS_PADRAO[c.nome] } : c);
+
+// Versão 3 -> 4: subcategorias sugeridas nas categorias e nas contas fixas padrão.
+async function adicionarSubcategorias() {
+  for (const c of estado.categorias) {
+    if (c.tipo === "despesa" && !c.subcategorias && SUBCATEGORIAS_PADRAO[c.nome] && !CATEGORIA_V2_PARA_V3.despesa[c.nome]) {
+      await store.update("categorias", c.id, { subcategorias: SUBCATEGORIAS_PADRAO[c.nome] });
+    }
+  }
+  for (const f of estado.fixas) {
+    if (!f.subcategoria && SUBCATEGORIA_FIXAS[f.id]) await store.update("fixas", f.id, { subcategoria: SUBCATEGORIA_FIXAS[f.id] });
+  }
 }
 
 iniciar();

@@ -10,6 +10,10 @@ Funciona nos moldes do Organizze, adaptado ao jeito do casal:
 - **Cartões**: fatura de cada mês com situação (aberta, fechada, paga, atrasada), divisão casa x pessoal e próximas faturas.
 - **Contas fixas** do mês para marcar como paga.
 - **Limite de gastos**: grupos Fixos, Pessoal, Alimentação, Casa e Poupar, com meta em % da receita.
+- **Relatórios**: entradas x saídas por mês, gastos por categoria (com evolução e subcategorias), uso das metas dos grupos mês a mês e gastos por tag.
+- **Importar extrato** OFX ou CSV do banco/fatura, com categoria sugerida e proteção contra duplicados.
+- **Avisos de vencimento**: sino no topo e aviso na visão geral para contas atrasadas ou que vencem nos próximos dias.
+- **Tags**, **subcategorias** e **metas de economia** (guardar e resgatar, com quanto falta por mês).
 - Categorias padrão do Organizze. Exportação em CSV. Menu lateral no computador e barra inferior no celular; instalável na tela inicial.
 
 ## Configuração (feita uma vez)

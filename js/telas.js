@@ -2,9 +2,10 @@
 import * as store from "./store.js";
 import {
   estado, pessoas, pessoa, conta, contasBancarias, cartoes, grupo, gruposOrdenados, icCat, icGrupo, iconeConta, icConta,
-  TIPOS_CONTA, NOMES_MESES, dinheiro, FILTRO_VAZIO, temaEscuroAtivo,
+  TIPOS_CONTA, NOMES_MESES, dinheiro, FILTRO_VAZIO, temaEscuroAtivo, todasAsTags, meta,
 } from "./estado.js";
 import { svg } from "./icones.js";
+import { htmlRelatorios, htmlMetas, htmlImportar, htmlAvisoInicio, ligarExtras } from "./telas-extras.js";
 import { $, $$, esc, toast, erroMsg } from "./ui.js";
 import {
   hojeISO, mesAtual, nomeMes, dataCurta, somarMeses, resumoDoMes, grupoDe, fixasDoMes, estaPago,
@@ -44,6 +45,7 @@ function htmlInicio() {
   const ultimoDia = new Date(a, m, 0).getDate();
 
   return `
+    ${htmlAvisoInicio()}
     <div class="saudacao">
       <span>${saudacao()}, <b>${esc(estado.eu.nome)}</b></span>
       <span class="periodo">Período: <b>1 ${NOMES_MESES[m - 1]} – ${ultimoDia} ${NOMES_MESES[m - 1]}</b></span>
@@ -180,6 +182,7 @@ function lancamentosFiltrados() {
     .filter((l) => !f.categoria || l.categoria === f.categoria)
     .filter((l) => !f.conta || l.contaId === f.conta || l.contaDestinoId === f.conta)
     .filter((l) => !f.status || (f.status === "pago" ? estaPago(l) : !estaPago(l)))
+    .filter((l) => !f.tag || (l.tags || []).includes(f.tag))
     .filter((l) => !busca || `${l.descricao} ${l.categoria || ""} ${conta(l.contaId)?.nome || ""} ${l.obs || ""}`.toLowerCase().includes(busca))
     .sort((a, b) => (b.data || "").localeCompare(a.data || "") || (b.criadoEm || 0) - (a.criadoEm || 0));
 }
@@ -217,6 +220,7 @@ function htmlLancamentos() {
       <select id="f-conta"><option value="">Todas as contas</option>${estado.contas.map((c) => `<option value="${c.id}" ${f.conta === c.id ? "selected" : ""}>${esc(c.nome)}${c.tipo === "cartao" ? " (cartão)" : ""}</option>`).join("")}</select>
       <select id="f-categoria"><option value="">Todas as categorias</option>${cats.map((c) => `<option ${f.categoria === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
       <select id="f-pessoa"><option value="">Os dois</option>${pessoas.map((p) => `<option value="${p.id}" ${f.pessoa === p.id ? "selected" : ""}>${esc(p.nome)}</option>`).join("")}</select>
+      ${todasAsTags().length ? `<select id="f-tag"><option value="">Todas as tags</option>${todasAsTags().map((t) => `<option ${f.tag === t ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>` : ""}
       <select id="f-status"><option value="">Pagos e pendentes</option><option value="pago" ${f.status === "pago" ? "selected" : ""}>Só pagos</option><option value="pendente" ${f.status === "pendente" ? "selected" : ""}>Só pendentes</option></select>
       ${filtrando ? `<button class="btn link" id="f-limpar">Limpar filtros</button>` : ""}
     </section>
@@ -255,7 +259,7 @@ export function htmlItem(l) {
       ${icCat(l.categoria, l.tipo)}
       <span class="txt">
         <b>${esc(l.descricao || l.categoria)}</b>
-        <small>${etiqueta}${c ? ` <span class="mini">${iconeConta(c)}</span>${esc(c.nome)}` : ""}${parcela}</small>
+        <small>${etiqueta}${l.subcategoria ? `<span class="sub-cat">${esc(l.categoria)} › ${esc(l.subcategoria)}</span>` : ""}${(l.tags || []).map((t) => `<span class="tag">#${esc(t)}</span>`).join("")}${l.metaId && meta(l.metaId) ? `<span class="tag meta">${esc(meta(l.metaId).nome)}</span>` : ""}${c ? ` <span class="mini">${iconeConta(c)}</span>${esc(c.nome)}` : ""}${parcela}</small>
       </span>
       <span class="val ${l.tipo}">${l.tipo === "receita" ? "+" : "−"}${dinheiro(l.valor)}</span>
     </li>`;
@@ -388,7 +392,7 @@ function htmlCategorias() {
       <h2>Despesas, por grupo</h2>
       ${gruposOrdenados().map((g) => `
         <h3 class="subtitulo"><span class="g-ic">${icGrupo(g.id)}</span>${esc(g.nome)}</h3>
-        <div class="chips">${catsDe((c) => c.tipo === "despesa" && (c.grupo || "casa") === g.id).map((c) => `<button class="chip" data-cat="${c.id}">${icCat(c.nome, c.tipo, "mini")} ${esc(c.nome)}</button>`).join("") || `<small>nenhuma</small>`}</div>`).join("")}
+        <div class="chips">${catsDe((c) => c.tipo === "despesa" && (c.grupo || "casa") === g.id).map((c) => `<button class="chip" data-cat="${c.id}">${icCat(c.nome, c.tipo, "mini")} ${esc(c.nome)}${c.subcategorias?.length ? ` <small>${c.subcategorias.length}</small>` : ""}</button>`).join("") || `<small>nenhuma</small>`}</div>`).join("")}
     </section>
     <section class="painel">
       <h2>Receitas</h2>
@@ -429,6 +433,9 @@ function htmlMais() {
   return `
     <div class="cab-pagina"><h1>Mais</h1></div>
     <ul class="lista menu-mais">
+      <li class="item" data-ir="cartoes">${icConta({ tipo: "cartao" })}<span class="txt"><b>Cartões de crédito</b><small>faturas e pagamentos</small></span><span class="seta">${svg("direita")}</span></li>
+      <li class="item" data-ir="metas"><span class="cat-ic neutro">${svg("bandeira")}</span><span class="txt"><b>Metas de economia</b><small>quanto já guardaram para cada objetivo</small></span><span class="seta">${svg("direita")}</span></li>
+      <li class="item" data-ir="importar"><span class="cat-ic neutro">${svg("importar")}</span><span class="txt"><b>Importar extrato</b><small>arquivo OFX ou CSV do banco</small></span><span class="seta">${svg("direita")}</span></li>
       <li class="item" data-ir="contas">${icConta({ tipo: "conta" })}<span class="txt"><b>Contas</b><small>saldos das contas bancárias</small></span><span class="seta">${svg("direita")}</span></li>
       <li class="item" data-ir="limites"><span class="cat-ic neutro">${svg("alvo")}</span><span class="txt"><b>Limite de gastos</b><small>metas dos grupos</small></span><span class="seta">${svg("direita")}</span></li>
       <li class="item" data-ir="categorias"><span class="cat-ic neutro">${svg("etiqueta")}</span><span class="txt"><b>Categorias</b></span><span class="seta">${svg("direita")}</span></li>
@@ -446,12 +453,16 @@ export const TELAS = {
   cartoes: { titulo: "Cartões", icone: "cartao", html: htmlCartoes, usaMes: true },
   contas: { titulo: "Contas", icone: "banco", html: htmlContas, usaMes: false },
   categorias: { titulo: "Categorias", icone: "etiqueta", html: htmlCategorias, usaMes: false },
+  relatorios: { titulo: "Relatórios", icone: "barras", html: htmlRelatorios, usaMes: true },
+  metas: { titulo: "Metas", icone: "bandeira", html: htmlMetas, usaMes: false },
+  importar: { titulo: "Importar extrato", icone: "importar", html: htmlImportar, usaMes: false },
   mais: { titulo: "Mais", icone: "menu", html: htmlMais, usaMes: false },
 };
 
 // ---------- Eventos comuns a todas as telas ----------
 
 export function ligarEventos(el, nav) {
+  ligarExtras(el, nav);
   const on = (sel, fn) => $$(sel, el).forEach((e) => e.addEventListener("click", (ev) => fn(e, ev)));
   on("[data-alternar]", (b, ev) => {
     ev.stopPropagation();
@@ -496,7 +507,7 @@ export function ligarEventos(el, nav) {
     });
   };
   liga("f-busca", "busca", "input");
-  ["grupo", "pessoa", "categoria", "conta", "status"].forEach((c) => liga("f-" + c, c));
+  ["grupo", "pessoa", "categoria", "conta", "status", "tag"].forEach((c) => liga("f-" + c, c));
   $("#f-limpar", el)?.addEventListener("click", () => { estado.filtro = { ...FILTRO_VAZIO }; nav.render(); });
 
   // metas

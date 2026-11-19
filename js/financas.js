@@ -305,3 +305,109 @@ export function contasAPagar({ lancamentos, fixas, contas, mes, hoje = hojeISO()
 export function aReceber(lancamentos, mes) {
   return lancamentos.filter((l) => l.tipo === "receita" && !estaPago(l) && l.competencia === mes);
 }
+
+// ---------- Subcategorias (versão 4) ----------
+
+// Subcategorias sugeridas para algumas categorias de despesa (editáveis em Categorias).
+export const SUBCATEGORIAS_PADRAO = {
+  "Casa": ["Financiamento / aluguel", "Condomínio", "Luz", "Água", "Gás", "Internet", "Manutenção", "Móveis e utilidades"],
+  "Transporte": ["Combustível", "Uber / táxi", "Manutenção do carro", "Estacionamento", "Seguro", "IPVA e licenciamento"],
+  "Saúde": ["Plano de saúde", "Farmácia", "Consultas e exames", "Dentista"],
+  "Alimentação": ["Padaria", "Lanches", "Açougue e hortifruti"],
+  "Bares e restaurantes": ["Restaurante", "Delivery", "Bar"],
+  "Assinaturas e serviços": ["Celular", "Streaming", "Aplicativos"],
+  "Impostos e Taxas": ["IPTU", "IPVA", "Tarifas bancárias"],
+  "Família e filhos": ["Bebê", "Escola", "Brinquedos"],
+  "Dívidas e empréstimos": ["Cheque especial", "Juros", "Empréstimo"],
+};
+
+// Subcategoria das contas fixas padrão (id da fixa -> subcategoria).
+export const SUBCATEGORIA_FIXAS = {
+  financiamento: "Financiamento / aluguel", condominio: "Condomínio", luz: "Luz", internet: "Internet",
+  "tim-leon": "Celular", "tim-ariane": "Celular", "hospitalar-leon": "Plano de saúde",
+  "hospitalar-ariane": "Plano de saúde", aapomil: "Plano de saúde", iptu: "IPTU", ipva: "IPVA",
+};
+
+// ---------- Avisos de vencimento ----------
+
+export function somarDias(iso, n) {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+// Contas pendentes atrasadas ou que vencem nos próximos "dias" (olha o mês atual e o seguinte).
+export function avisosDeVencimento({ lancamentos, fixas, contas, hoje = hojeISO(), dias = 5 }) {
+  const limite = somarDias(hoje, dias);
+  const mes = hoje.slice(0, 7);
+  const itens = [...contasAPagar({ lancamentos, fixas, contas, mes, hoje }), ...contasAPagar({ lancamentos, fixas, contas, mes: somarMeses(mes, 1), hoje })];
+  return itens.filter((i) => i.vence <= limite).map((i) => ({ ...i, mes: i.vence.slice(0, 7), venceHoje: i.vence === hoje }));
+}
+
+// ---------- Metas de economia ----------
+
+// Guardado = valor inicial + despesas ligadas à meta (dinheiro guardado) − receitas ligadas à meta (resgates).
+export function progressoMeta(meta, lancamentos, hoje = hojeISO()) {
+  const movs = lancamentos.filter((l) => l.metaId === meta.id && estaPago(l));
+  const guardado = (meta.valorInicial || 0) + movs.reduce((s, l) => s + (l.tipo === "receita" ? -l.valor : l.tipo === "despesa" ? l.valor : 0), 0);
+  const alvo = meta.valorAlvo || 0;
+  const falta = Math.max(0, alvo - guardado);
+  let mesesRestantes = null;
+  let porMes = null;
+  if (meta.prazo) {
+    const [a1, m1] = hoje.slice(0, 7).split("-").map(Number);
+    const [a2, m2] = meta.prazo.split("-").map(Number);
+    mesesRestantes = Math.max(0, (a2 - a1) * 12 + (m2 - m1) + 1);
+    porMes = mesesRestantes ? Math.ceil(falta / mesesRestantes) : falta;
+  }
+  return { guardado, alvo, falta, pct: alvo ? Math.min(1, guardado / alvo) : 0, concluida: alvo > 0 && guardado >= alvo, mesesRestantes, porMes, movimentos: movs };
+}
+
+// ---------- Relatórios ----------
+
+export const mesesAte = (mesFinal, quantidade) => Array.from({ length: quantidade }, (_, i) => somarMeses(mesFinal, i - quantidade + 1));
+
+// Receitas, despesas e saldo de cada mês (transferências não entram).
+export function serieMensal(lancamentos, meses) {
+  const base = Object.fromEntries(meses.map((m) => [m, { mes: m, receitas: 0, despesas: 0 }]));
+  for (const l of lancamentos) {
+    const b = base[l.competencia];
+    if (!b || l.tipo === "transferencia") continue;
+    if (l.tipo === "receita") b.receitas += l.valor;
+    else b.despesas += l.valor;
+  }
+  return meses.map((m) => ({ ...base[m], saldo: base[m].receitas - base[m].despesas }));
+}
+
+// Total de despesas por categoria em um conjunto de meses.
+export function despesasPorCategoria(lancamentos, meses) {
+  const set = new Set(meses);
+  const r = {};
+  for (const l of lancamentos) {
+    if (l.tipo !== "despesa" || !set.has(l.competencia)) continue;
+    const c = l.categoria || "Sem categoria";
+    r[c] ||= { total: 0, porMes: {}, porSub: {} };
+    r[c].total += l.valor;
+    r[c].porMes[l.competencia] = (r[c].porMes[l.competencia] || 0) + l.valor;
+    const sub = l.subcategoria || "Sem subcategoria";
+    r[c].porSub[sub] = (r[c].porSub[sub] || 0) + l.valor;
+  }
+  return r;
+}
+
+// Total de despesas e receitas por tag em um conjunto de meses.
+export function totaisPorTag(lancamentos, meses) {
+  const set = meses ? new Set(meses) : null;
+  const r = {};
+  for (const l of lancamentos) {
+    if (!l.tags?.length || l.tipo === "transferencia" || (set && !set.has(l.competencia))) continue;
+    for (const t of l.tags) {
+      r[t] ||= { despesas: 0, receitas: 0, quantidade: 0 };
+      r[t][l.tipo === "receita" ? "receitas" : "despesas"] += l.valor;
+      r[t].quantidade++;
+    }
+  }
+  return r;
+}
+
+export const normalizarTag = (t) => String(t || "").trim().replace(/^#/, "").replace(/\s+/g, " ").toLowerCase();

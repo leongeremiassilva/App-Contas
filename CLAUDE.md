@@ -17,7 +17,9 @@ App de controle financeiro do casal (Leon e Ariane; no código a Ariane tem id `
 - `js/estado.js` — estado compartilhado e consultas (pessoa, conta, grupo, `dinheiro()` que respeita o "esconder valores").
 - `js/ui.js` — modal, confirmação, aviso (toast), escape de HTML.
 - `js/formularios.js` — janelas de lançamento (despesa/receita/transferência), pagar fatura, pagar conta fixa, conta/cartão, categoria, conta fixa, exportar CSV.
-- `js/telas.js` — telas (`TELAS`: inicio, lancamentos, fixas, limites, cartoes, contas, categorias, mais) e `ligarEventos` (atributos `data-*`).
+- `js/telas.js` — telas principais (`TELAS`: inicio, lancamentos, fixas, limites, cartoes, contas, categorias, relatorios, metas, importar, mais) e `ligarEventos` (atributos `data-*`).
+- `js/telas-extras.js` — Relatórios (gráfico de barras SVG próprio, com dica ao passar o dedo/mouse), Metas de economia, Importar extrato e Avisos de vencimento (sino no topo + faixa na visão geral).
+- `js/importar.js` — leitura de OFX e CSV (detecta separador, colunas e acentuação Windows-1252), sugestão de categoria (histórico → palavras-chave) e chave anti-duplicado.
 - `js/app.js` — login, estrutura (menu lateral no computador ≥900px, barra inferior no celular), navegação e preparação/migração de dados (`prepararDados`, controlada por `config/versao`).
 - `js/icones.js` — ícones de traço em SVG desenhados para o app (`svg(nome)`), lista de ícones de categoria e ícone de cada grupo.
 - `css/style.css` — visual, mobile-first. Tema: `data-tema` no `<html>` ("claro"/"escuro"; sem atributo = segue o aparelho), escolhido no botão Modo escuro e salvo no navegador.
@@ -25,7 +27,8 @@ App de controle financeiro do casal (Leon e Ariane; no código a Ariane tem id `
 
 ## Referência de funcionamento
 - O Leon gosta do **Organizze** (app.organizze.com.br) e pediu o app nos moldes dele: visão geral com receita/despesa do mês e botões rápidos, minhas contas com saldo, cartões com fatura, contas a pagar, limite de gastos, maiores gastos. Visual próprio, sem copiar marca.
-- Combinado: implementar o básico e **perguntar antes** de cada função extra (relatórios, tags, subcategorias, metas de economia, anexos, importar extrato, avisos de vencimento). Conexão bancária automática não é viável (Open Finance).
+- Combinado: implementar o básico e **perguntar antes** de cada função extra. Já feitas (19/11/2026): relatórios, importar extrato, avisos de vencimento, tags, subcategorias, metas de economia. **Anexar comprovante: o Leon não quer.** Conexão bancária automática não é viável (Open Finance).
+- Gráficos: receitas `#0d9488` e despesas `#ea580c` (par validado para daltonismo; verde x vermelho reprova). Valores ocultos respeitam o olho.
 
 ## Preferências visuais do Leon
 - **Sem emojis** em lugar nenhum da interface: usar só os ícones de traço de `js/icones.js` (criar novos no mesmo estilo se precisar). Dentro de `<option>` não dá para usar ícone: só texto.
@@ -38,14 +41,16 @@ App de controle financeiro do casal (Leon e Ariane; no código a Ariane tem id `
 - Gastos do grupo Pessoal indicam de quem são (Leon ou Ariane).
 
 ## Modelo de dados (Firestore)
-- `lancamentos`: `tipo` ("despesa"|"receita"|"transferencia"), `valor` (centavos, inteiro), `descricao`, `categoria` (nome; null em transferência), `grupo` (id do grupo; se faltar, vale o grupo da categoria), `pessoalDe` (id da pessoa, só no grupo pessoal), `data` (YYYY-MM-DD), `competencia` (YYYY-MM em que o dinheiro sai: para cartão é o mês do vencimento da fatura), `pago` (false = pendente; ausente = pago), `pessoa` (receita: quem recebeu; despesa/transferência: dono da conta usada), `contaId` (conta usada / origem da transferência), `contaDestinoId` (destino da transferência), `faturaDe` (YYYY-MM da fatura paga, quando o destino é cartão), `obs`, `fixaId`, `parcela`, `totalParcelas`, `recorrencia` ("parcelado"|"fixo"|null), `grupoId`, `criadoPor`, `criadoEm`, `alteradoPor`, `alteradoEm`.
+- `lancamentos`: `tipo` ("despesa"|"receita"|"transferencia"), `valor` (centavos, inteiro), `descricao`, `categoria` (nome; null em transferência), `grupo` (id do grupo; se faltar, vale o grupo da categoria), `pessoalDe` (id da pessoa, só no grupo pessoal), `data` (YYYY-MM-DD), `competencia` (YYYY-MM em que o dinheiro sai: para cartão é o mês do vencimento da fatura), `pago` (false = pendente; ausente = pago), `pessoa` (receita: quem recebeu; despesa/transferência: dono da conta usada), `contaId` (conta usada / origem da transferência), `contaDestinoId` (destino da transferência), `faturaDe` (YYYY-MM da fatura paga, quando o destino é cartão), `obs`, `fixaId`, `subcategoria` (nome, opcional), `tags` (lista de textos em minúsculas), `metaId` (meta de economia: despesa = guardar, receita = resgatar), `importId` + `importadoDe` (linhas vindas de extrato; evita importar duas vezes), `parcela`, `totalParcelas`, `recorrencia` ("parcelado"|"fixo"|null), `grupoId`, `criadoPor`, `criadoEm`, `alteradoPor`, `alteradoEm`.
 - Transferência não conta como receita nem despesa. Pagamento de fatura = transferência de uma conta para o cartão com `faturaDe`; a fatura fica "paga" quando os pagamentos cobrem o total.
 - Saldo da conta = `saldoInicial` + receitas pagas − despesas pagas ± transferências pagas. Cartão não tem saldo, tem fatura (aberta / fechada / paga / atrasada).
 - `grupos` (id fixo: fixos, pessoal, alimentacao, casa, poupar): `nome`, `percentual`, `icone`, `ordem`.
-- `categorias`: `nome`, `tipo`, `icone` (nome de ícone de `icones.js`; dados antigos podem ter emoji, que é ignorado), `cor`, `grupo` (só despesa). "Investimentos" existe como despesa e como receita: compare sempre nome **e** tipo.
-- `fixas`: `nome`, `valor` (previsto), `dia`, `categoria`, `meses` (1-12; vazio = todo mês), `ativa`. Paga no mês = lançamento com `fixaId` e `competencia` do mês. Pagamento de conta fixa vai sempre para o grupo Fixos.
+- `categorias`: `nome`, `tipo`, `icone` (nome de ícone de `icones.js`; dados antigos podem ter emoji, que é ignorado), `cor`, `grupo` (só despesa), `subcategorias` (lista de nomes). "Investimentos" existe como despesa e como receita: compare sempre nome **e** tipo.
+- `fixas`: `nome`, `valor` (previsto), `dia`, `categoria`, `subcategoria`, `meses` (1-12; vazio = todo mês), `ativa`. Paga no mês = lançamento com `fixaId` e `competencia` do mês. Pagamento de conta fixa vai sempre para o grupo Fixos.
 - `contas`: `nome`, `tipo` ("conta"|"cartao"|"dinheiro"), `dono`, `saldoInicial` (centavos), `fechamento`, `vencimento`, `limite` (só cartão).
-- `config/versao`: `{ dados: 3 }`. v2→v3 trocou as categorias pelas do Organizze (`CATEGORIA_V2_PARA_V3`). Ao mudar dados padrão ou estrutura, suba `VERSAO_DADOS` em app.js e trate a migração em `prepararDados`.
+- `metas`: `nome`, `valorAlvo`, `prazo` (YYYY-MM, opcional), `valorInicial`, `cor`, `arquivada`. Guardado = valorInicial + despesas pagas com `metaId` − receitas pagas com `metaId`.
+- `config/versao`: `{ dados: 4 }`. v2→v3 trocou as categorias pelas do Organizze (`CATEGORIA_V2_PARA_V3`); v3→v4 adicionou subcategorias padrão (`SUBCATEGORIAS_PADRAO`, `SUBCATEGORIA_FIXAS`).
+- Preferências só do aparelho (localStorage): `tema`, `ocultarValores`, `diasAviso` (antecedência dos avisos). Ao mudar dados padrão ou estrutura, suba `VERSAO_DADOS` em app.js e trate a migração em `prepararDados`.
 - Regra de cartão: compra no dia do fechamento ou depois vai para a fatura seguinte.
 
 ## Como trabalhar
