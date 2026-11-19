@@ -16,5 +16,5 @@ export const firebaseConfig = {
 // Se mudar um e-mail aqui, mude também em firestore.rules.
 export const pessoas = [
   { id: "leon", nome: "Leon", email: "leon.geremias.silva@gmail.com", cor: "#2f6fde" },
-  { id: "esposa", nome: "Ariane", email: "", cor: "#d9467a" },
+  { id: "esposa", nome: "Ariane", email: "arianelitiely9@gmail.com", cor: "#d9467a" },
 ];

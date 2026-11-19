@@ -10,7 +10,7 @@ service cloud.firestore {
         && request.auth.token.email_verified == true
         && request.auth.token.email.lower() in [
           'leon.geremias.silva@gmail.com',
-          'EMAIL_DA_ESPOSA@gmail.com'
+          'arianelitiely9@gmail.com'
         ];
     }
     match /{documento=**} {
