@@ -30,7 +30,7 @@ export const CATEGORIAS_PADRAO = [
   { nome: "Roupas", tipo: "despesa", icone: "camisa", cor: "#3b82f6", grupo: "pessoal" },
   { nome: "Saúde", tipo: "despesa", icone: "saude", cor: "#dc2626", grupo: "casa" },
   { nome: "Trabalho", tipo: "despesa", icone: "maleta", cor: "#475569", grupo: "pessoal" },
-  { nome: "Transporte", tipo: "despesa", icone: "carro", cor: "#0284c7", grupo: "alimentacao" },
+  { nome: "Transporte", tipo: "despesa", icone: "carro", cor: "#0284c7", grupo: "casa" },
   { nome: "Viagem", tipo: "despesa", icone: "aviao", cor: "#06b6d4", grupo: "casa" },
   { nome: "Empréstimos", tipo: "receita", icone: "mao", cor: "#0891b2" },
   { nome: "Investimentos", tipo: "receita", icone: "grafico", cor: "#059669" },

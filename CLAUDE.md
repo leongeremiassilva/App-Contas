@@ -49,7 +49,7 @@ App de controle financeiro do casal (Leon e Ariane; no código a Ariane tem id `
 - `fixas`: `nome`, `valor` (previsto), `dia`, `categoria`, `subcategoria`, `meses` (1-12; vazio = todo mês), `ativa`. Paga no mês = lançamento com `fixaId` e `competencia` do mês. Pagamento de conta fixa vai sempre para o grupo Fixos.
 - `contas`: `nome`, `tipo` ("conta"|"cartao"|"dinheiro"), `dono`, `saldoInicial` (centavos), `fechamento`, `vencimento`, `limite` (só cartão).
 - `metas`: `nome`, `valorAlvo`, `prazo` (YYYY-MM, opcional), `valorInicial`, `cor`, `arquivada`. Guardado = valorInicial + despesas pagas com `metaId` − receitas pagas com `metaId`.
-- `config/versao`: `{ dados: 4 }`. v2→v3 trocou as categorias pelas do Organizze (`CATEGORIA_V2_PARA_V3`); v3→v4 adicionou subcategorias padrão (`SUBCATEGORIAS_PADRAO`, `SUBCATEGORIA_FIXAS`).
+- `config/versao`: `{ dados: 5 }`. v4→v5 passou Transporte (categoria e lançamentos) do grupo Alimentação para Casa. v2→v3 trocou as categorias pelas do Organizze (`CATEGORIA_V2_PARA_V3`); v3→v4 adicionou subcategorias padrão (`SUBCATEGORIAS_PADRAO`, `SUBCATEGORIA_FIXAS`).
 - Preferências só do aparelho (localStorage): `tema`, `ocultarValores`, `diasAviso` (antecedência dos avisos). Ao mudar dados padrão ou estrutura, suba `VERSAO_DADOS` em app.js e trate a migração em `prepararDados`.
 - Regra de cartão: compra no dia do fechamento ou depois vai para a fatura seguinte.
 

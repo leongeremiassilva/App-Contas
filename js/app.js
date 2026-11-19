@@ -11,7 +11,7 @@ import {
   mesAtual, somarMeses, nomeMes, grupoDe,
 } from "./financas.js";
 
-const VERSAO_DADOS = 4;
+const VERSAO_DADOS = 5;
 const MENU_LATERAL = ["inicio", "lancamentos", "fixas", "relatorios", "limites", "metas", "cartoes", "contas", "categorias", "importar"];
 const MENU_INFERIOR = ["inicio", "lancamentos", "fixas", "relatorios", "mais"];
 const DENTRO_DE_MAIS = ["cartoes", "contas", "categorias", "limites", "metas", "importar"];
@@ -230,6 +230,7 @@ async function prepararDados() {
     else {
       if (versao < 3) await migrarParaCategoriasOrganizze();
       if (versao < 4) await adicionarSubcategorias();
+      if (versao < 5) await transporteParaCasa();
     }
     await store.set("config", "versao", { dados: VERSAO_DADOS, em: Date.now(), por: estado.eu.id });
     preparado = true;
@@ -292,6 +293,17 @@ async function migrarParaCategoriasOrganizze() {
 }
 
 const comSubcategorias = (c) => (c.tipo === "despesa" && SUBCATEGORIAS_PADRAO[c.nome] ? { ...c, subcategorias: SUBCATEGORIAS_PADRAO[c.nome] } : c);
+
+// Versão 4 -> 5: Transporte sai do grupo Alimentação e vai para Casa (pedido do Leon em 19/11/2026),
+// inclusive nos lançamentos e contas já feitos.
+async function transporteParaCasa() {
+  for (const c of estado.categorias) {
+    if (c.nome === "Transporte" && c.tipo === "despesa" && c.grupo === "alimentacao") await store.update("categorias", c.id, { grupo: "casa" });
+  }
+  for (const l of estado.lancamentos) {
+    if (l.tipo === "despesa" && l.categoria === "Transporte" && (l.grupo === "alimentacao" || !l.grupo)) await store.update("lancamentos", l.id, { grupo: "casa" });
+  }
+}
 
 // Versão 3 -> 4: subcategorias sugeridas nas categorias e nas contas fixas padrão.
 async function adicionarSubcategorias() {
