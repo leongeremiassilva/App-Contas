@@ -19,12 +19,18 @@ App de controle financeiro do casal (Leon e Ariane; no código a Ariane tem id `
 - `js/formularios.js` — janelas de lançamento (despesa/receita/transferência), pagar fatura, pagar conta fixa, conta/cartão, categoria, conta fixa, exportar CSV.
 - `js/telas.js` — telas (`TELAS`: inicio, lancamentos, fixas, limites, cartoes, contas, categorias, mais) e `ligarEventos` (atributos `data-*`).
 - `js/app.js` — login, estrutura (menu lateral no computador ≥900px, barra inferior no celular), navegação e preparação/migração de dados (`prepararDados`, controlada por `config/versao`).
-- `css/style.css` — visual, mobile-first, com tema escuro automático.
+- `js/icones.js` — ícones de traço em SVG desenhados para o app (`svg(nome)`), lista de ícones de categoria e ícone de cada grupo.
+- `css/style.css` — visual, mobile-first. Tema: `data-tema` no `<html>` ("claro"/"escuro"; sem atributo = segue o aparelho), escolhido no botão Modo escuro e salvo no navegador.
 - `sw.js` + `manifest.json` + ícones — instalar na tela inicial (rede primeiro; ao mudar muito, suba o nome do CACHE).
 
 ## Referência de funcionamento
 - O Leon gosta do **Organizze** (app.organizze.com.br) e pediu o app nos moldes dele: visão geral com receita/despesa do mês e botões rápidos, minhas contas com saldo, cartões com fatura, contas a pagar, limite de gastos, maiores gastos. Visual próprio, sem copiar marca.
 - Combinado: implementar o básico e **perguntar antes** de cada função extra (relatórios, tags, subcategorias, metas de economia, anexos, importar extrato, avisos de vencimento). Conexão bancária automática não é viável (Open Finance).
+
+## Preferências visuais do Leon
+- **Sem emojis** em lugar nenhum da interface: usar só os ícones de traço de `js/icones.js` (criar novos no mesmo estilo se precisar). Dentro de `<option>` não dá para usar ícone: só texto.
+- Categoria aparece como bolinha colorida com ícone (`icCat`), como no Organizze. Categorias guardam `icone` (nome do ícone) e `cor`; se faltar, vale o padrão pelo nome.
+- Modo claro/escuro com interruptor (menu lateral, "Mais" no celular e menu do perfil).
 
 ## Como o casal pensa o dinheiro
 - O dinheiro é todo junto. O que importa é **para que** foi o gasto (grupo do orçamento) e se as **contas fixas** foram pagas; "quem pagou" é secundário. Não existe acerto entre os dois.
@@ -36,7 +42,7 @@ App de controle financeiro do casal (Leon e Ariane; no código a Ariane tem id `
 - Transferência não conta como receita nem despesa. Pagamento de fatura = transferência de uma conta para o cartão com `faturaDe`; a fatura fica "paga" quando os pagamentos cobrem o total.
 - Saldo da conta = `saldoInicial` + receitas pagas − despesas pagas ± transferências pagas. Cartão não tem saldo, tem fatura (aberta / fechada / paga / atrasada).
 - `grupos` (id fixo: fixos, pessoal, alimentacao, casa, poupar): `nome`, `percentual`, `icone`, `ordem`.
-- `categorias`: `nome`, `tipo`, `icone`, `grupo` (só despesa). "Investimentos" existe como despesa e como receita: compare sempre nome **e** tipo.
+- `categorias`: `nome`, `tipo`, `icone` (nome de ícone de `icones.js`; dados antigos podem ter emoji, que é ignorado), `cor`, `grupo` (só despesa). "Investimentos" existe como despesa e como receita: compare sempre nome **e** tipo.
 - `fixas`: `nome`, `valor` (previsto), `dia`, `categoria`, `meses` (1-12; vazio = todo mês), `ativa`. Paga no mês = lançamento com `fixaId` e `competencia` do mês. Pagamento de conta fixa vai sempre para o grupo Fixos.
 - `contas`: `nome`, `tipo` ("conta"|"cartao"|"dinheiro"), `dono`, `saldoInicial` (centavos), `fechamento`, `vencimento`, `limite` (só cartão).
 - `config/versao`: `{ dados: 3 }`. v2→v3 trocou as categorias pelas do Organizze (`CATEGORIA_V2_PARA_V3`). Ao mudar dados padrão ou estrutura, suba `VERSAO_DADOS` em app.js e trate a migração em `prepararDados`.

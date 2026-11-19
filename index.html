@@ -11,6 +11,10 @@
   <link rel="icon" href="icone.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icone-192.png">
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    // aplica o tema escolhido antes de desenhar a página (evita piscar)
+    try { const t = localStorage.getItem("tema"); if (t === "claro" || t === "escuro") document.documentElement.dataset.tema = t; } catch (e) {}
+  </script>
 </head>
 <body>
   <div id="app"><p class="carregando">Carregando…</p></div>

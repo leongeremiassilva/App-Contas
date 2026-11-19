@@ -1,10 +1,11 @@
 // Formulários (janelas) de lançamento, transferência, conta, cartão, categoria e conta fixa.
 import * as store from "./store.js";
 import {
-  estado, pessoas, pessoa, conta, contasBancarias, cartoes, grupo, gruposOrdenados, iconeCat, iconeConta,
+  estado, pessoas, pessoa, conta, contasBancarias, cartoes, grupo, gruposOrdenados, infoCategoria,
   TIPOS_CONTA, NOMES_MESES, centavosParaTexto,
 } from "./estado.js";
 import { $$, esc, abrirModal, fecharModal, confirmar, toast, erroMsg } from "./ui.js";
+import { svg, ICONES_CATEGORIA } from "./icones.js";
 import {
   moeda, paraCentavos, hojeISO, mesAtual, somarMeses, nomeMes, competencia, gerarLancamentos, grupoDe, estaPago,
 } from "./financas.js";
@@ -13,7 +14,7 @@ const opcoesContas = (lista, selecionada, vazia = "") => `
   ${vazia ? `<option value="">${vazia}</option>` : ""}
   ${pessoas.map((p) => {
     const cs = lista.filter((c) => c.dono === p.id);
-    return cs.length ? `<optgroup label="${esc(p.nome)}">${cs.map((c) => `<option value="${c.id}" ${selecionada === c.id ? "selected" : ""}>${iconeConta(c)} ${esc(c.nome)}</option>`).join("")}</optgroup>` : "";
+    return cs.length ? `<optgroup label="${esc(p.nome)}">${cs.map((c) => `<option value="${c.id}" ${selecionada === c.id ? "selected" : ""}>${esc(c.nome)}${c.tipo === "cartao" ? " (cartão)" : ""}</option>`).join("")}</optgroup>` : "";
   }).join("")}`;
 
 // ---------- Lançamento (despesa / receita / transferência) ----------
@@ -53,7 +54,7 @@ export function formLancamento(l, pre = {}) {
 
       <label class="nao-transf">Categoria <select name="categoria"></select></label>
       <div class="duas so-despesa">
-        <label>Grupo <select name="grupo">${gruposOrdenados().map((g) => `<option value="${g.id}">${g.icone || ""} ${esc(g.nome)}</option>`).join("")}</select></label>
+        <label>Grupo <select name="grupo">${gruposOrdenados().map((g) => `<option value="${g.id}">${esc(g.nome)}</option>`).join("")}</select></label>
         <label class="so-pessoal">Pessoal de <select name="pessoalDe">${pessoas.map((p) => `<option value="${p.id}" ${(v.pessoalDe || v.pessoa || estado.eu.id) === p.id ? "selected" : ""}>${esc(p.nome)}</option>`).join("")}</select></label>
       </div>
 
@@ -103,11 +104,11 @@ export function formLancamento(l, pre = {}) {
       const atual = f.categoria.value || v.categoria;
       if (t === "receita") {
         const cats = estado.categorias.filter((c) => c.tipo === "receita").sort((a, b) => a.nome.localeCompare(b.nome));
-        f.categoria.innerHTML = cats.map((c) => `<option value="${esc(c.nome)}">${c.icone || ""} ${esc(c.nome)}</option>`).join("");
+        f.categoria.innerHTML = cats.map((c) => `<option value="${esc(c.nome)}">${esc(c.nome)}</option>`).join("");
       } else {
         f.categoria.innerHTML = gruposOrdenados().map((g) => {
           const cats = estado.categorias.filter((c) => c.tipo === "despesa" && (c.grupo || "casa") === g.id).sort((a, b) => a.nome.localeCompare(b.nome));
-          return cats.length ? `<optgroup label="${esc(g.nome)}">${cats.map((c) => `<option value="${esc(c.nome)}">${c.icone || ""} ${esc(c.nome)}</option>`).join("")}</optgroup>` : "";
+          return cats.length ? `<optgroup label="${esc(g.nome)}">${cats.map((c) => `<option value="${esc(c.nome)}">${esc(c.nome)}</option>`).join("")}</optgroup>` : "";
         }).join("");
       }
       if ([...f.categoria.options].some((o) => o.value === atual)) f.categoria.value = atual;
@@ -396,18 +397,27 @@ export function formConta(c, tipoNovo = "conta") {
 
 // ---------- Categorias ----------
 
+const CORES_CATEGORIA = ["#22c55e", "#15803d", "#10b981", "#14b8a6", "#06b6d4", "#0ea5e9", "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899", "#e11d48", "#ef4444", "#f97316", "#f59e0b", "#b45309", "#64748b", "#94a3b8", "#475569"];
+
 export function formCategoria(c) {
   const novo = !c.id;
+  const info = novo ? { icone: "etiqueta", cor: "#0ea5e9" } : infoCategoria(c.nome, c.tipo);
+  if (!CORES_CATEGORIA.includes(info.cor)) CORES_CATEGORIA.push(info.cor);
   abrirModal(`
     <form autocomplete="off">
       <h2>${novo ? "Nova categoria" : "Editar categoria"}</h2>
-      <div class="duas estreita">
-        <label>Ícone <input name="icone" maxlength="4" value="${esc(c.icone || "")}" placeholder="🙂"></label>
-        <label>Nome <input name="nome" required value="${esc(c.nome || "")}"></label>
-      </div>
+      <label>Nome <input name="nome" required value="${esc(c.nome || "")}"></label>
+      <fieldset class="seletor-icone" style="--c:${info.cor}">
+        <legend>Ícone</legend>
+        ${ICONES_CATEGORIA.map((ic) => `<label title="${ic}"><input type="radio" name="icone" value="${ic}" ${info.icone === ic ? "checked" : ""}><span>${svg(ic)}</span></label>`).join("")}
+      </fieldset>
+      <fieldset class="seletor-cor">
+        <legend>Cor</legend>
+        ${CORES_CATEGORIA.map((cor) => `<label><input type="radio" name="cor" value="${cor}" ${info.cor === cor ? "checked" : ""}><span style="background:${cor}"></span></label>`).join("")}
+      </fieldset>
       <div class="duas">
         <label>Tipo <select name="tipo"><option value="despesa" ${c.tipo === "despesa" ? "selected" : ""}>Despesa</option><option value="receita" ${c.tipo === "receita" ? "selected" : ""}>Receita</option></select></label>
-        <label class="so-despesa">Grupo <select name="grupo">${gruposOrdenados().map((g) => `<option value="${g.id}" ${(c.grupo || "casa") === g.id ? "selected" : ""}>${g.icone || ""} ${esc(g.nome)}</option>`).join("")}</select></label>
+        <label class="so-despesa">Grupo <select name="grupo">${gruposOrdenados().map((g) => `<option value="${g.id}" ${(c.grupo || "casa") === g.id ? "selected" : ""}>${esc(g.nome)}</option>`).join("")}</select></label>
       </div>
       <div class="acoes">
         ${novo ? "" : `<button type="button" class="btn perigo" id="excluir">Excluir</button>`}
@@ -419,9 +429,16 @@ export function formCategoria(c) {
     const mostrar = () => (m.querySelector(".so-despesa").hidden = f.tipo.value !== "despesa");
     mostrar();
     f.tipo.addEventListener("change", mostrar);
+    $$("[name=cor]", f).forEach((r) => r.addEventListener("change", () => m.querySelector(".seletor-icone").style.setProperty("--c", r.value)));
     f.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const dados = { nome: f.nome.value.trim(), icone: f.icone.value.trim(), tipo: f.tipo.value, grupo: f.tipo.value === "despesa" ? f.grupo.value : null };
+      const dados = {
+        nome: f.nome.value.trim(),
+        icone: f.querySelector("[name=icone]:checked")?.value || "etiqueta",
+        cor: f.querySelector("[name=cor]:checked")?.value || "#0ea5e9",
+        tipo: f.tipo.value,
+        grupo: f.tipo.value === "despesa" ? f.grupo.value : null,
+      };
       try {
         if (novo) await store.add("categorias", dados);
         else {
@@ -462,7 +479,7 @@ export function formFixa(f) {
         <label>Valor previsto <input name="valor" inputmode="decimal" placeholder="0,00" value="${centavosParaTexto(f?.valor)}"></label>
         <label>Dia do vencimento <input type="number" name="dia" min="1" max="31" value="${f?.dia || ""}"></label>
       </div>
-      <label>Categoria <select name="categoria">${cats.map((c) => `<option value="${esc(c.nome)}" ${f?.categoria === c.nome ? "selected" : ""}>${c.icone || ""} ${esc(c.nome)} (${esc(grupo(c.grupo).nome)})</option>`).join("")}</select></label>
+      <label>Categoria <select name="categoria">${cats.map((c) => `<option value="${esc(c.nome)}" ${f?.categoria === c.nome ? "selected" : ""}>${esc(c.nome)} (${esc(grupo(c.grupo).nome)})</option>`).join("")}</select></label>
       <fieldset class="meses">
         <legend>Em quais meses? <small>(nenhum marcado = todo mês)</small></legend>
         ${NOMES_MESES.map((n, i) => `<label><input type="checkbox" name="mes" value="${i + 1}" ${meses.includes(i + 1) ? "checked" : ""}><span>${n}</span></label>`).join("")}

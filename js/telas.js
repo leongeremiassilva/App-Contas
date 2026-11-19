@@ -1,9 +1,10 @@
 // Telas do app. Cada tela tem html() e, se precisar, ligar(el, nav) para os eventos.
 import * as store from "./store.js";
 import {
-  estado, pessoas, pessoa, conta, contasBancarias, cartoes, grupo, gruposOrdenados, iconeCat, iconeConta,
-  TIPOS_CONTA, NOMES_MESES, dinheiro, FILTRO_VAZIO,
+  estado, pessoas, pessoa, conta, contasBancarias, cartoes, grupo, gruposOrdenados, icCat, icGrupo, iconeConta, icConta,
+  TIPOS_CONTA, NOMES_MESES, dinheiro, FILTRO_VAZIO, temaEscuroAtivo,
 } from "./estado.js";
+import { svg } from "./icones.js";
 import { $, $$, esc, toast, erroMsg } from "./ui.js";
 import {
   hojeISO, mesAtual, nomeMes, dataCurta, somarMeses, resumoDoMes, grupoDe, fixasDoMes, estaPago,
@@ -49,25 +50,25 @@ function htmlInicio() {
     </div>
 
     <section class="painel destaque">
-      <button class="olho" id="olho" title="${estado.ocultar ? "Mostrar valores" : "Esconder valores"}">${estado.ocultar ? "🙈" : "👁️"}</button>
+      <button class="olho" id="olho" title="${estado.ocultar ? "Mostrar valores" : "Esconder valores"}">${svg(estado.ocultar ? "olhoFechado" : "olho")}</button>
       <button class="numero rec" data-ir-filtro='{"grupo":"__receita"}'><span>Receita mensal</span><b class="pos">${dinheiro(r.receitas)}</b></button>
       <button class="numero desp" data-ir-filtro='{"grupo":"__despesa"}'><span>Despesa mensal</span><b class="neg">${dinheiro(r.despesas)}</b></button>
       <div class="numero saldo-mes"><span>Saldo do mês</span><b class="${r.saldo < 0 ? "neg" : ""}">${dinheiro(r.saldo)}</b></div>
       <div class="atalhos">
-        <button class="btn atalho despesa" data-novo="despesa">− Despesa</button>
-        <button class="btn atalho receita" data-novo="receita">+ Receita</button>
-        <button class="btn atalho" data-novo="transferencia">⇄ Transferir</button>
+        <button class="btn atalho despesa" data-novo="despesa">${svg("saida")} Despesa</button>
+        <button class="btn atalho receita" data-novo="receita">${svg("entrada")} Receita</button>
+        <button class="btn atalho" data-novo="transferencia">${svg("transferir")} Transferir</button>
       </div>
     </section>
 
     <div class="grade">
       <section class="painel">
-        <div class="cab"><h2>Minhas contas</h2><button class="btn link" data-ir="contas">Gerenciar ›</button></div>
+        <div class="cab"><h2>Minhas contas</h2><button class="btn link" data-ir="contas">Gerenciar ${svg("direita")}</button></div>
         <div class="saldo-geral"><span>Saldo geral</span><b class="${saldoGeral < 0 ? "neg" : ""}">${dinheiro(saldoGeral)}</b>
           ${previstoGeral !== saldoGeral ? `<small>previsto no fim do mês: ${dinheiro(previstoGeral)}</small>` : ""}</div>
         ${contas.length ? `<ul class="lista simples">${contas.map((c) => `
           <li class="item" data-ir-filtro='{"conta":"${c.id}"}'>
-            <span class="ic">${iconeConta(c)}</span>
+            ${icConta(c)}
             <span class="txt"><b>${esc(c.nome)}</b><small>${esc(pessoa(c.dono).nome)}</small></span>
             <span class="val ${saldos[c.id].atual < 0 ? "neg" : "azul"}">${dinheiro(saldos[c.id].atual)}</span>
           </li>`).join("")}</ul>` : `<p class="vazio">Nenhuma conta cadastrada.</p>`}
@@ -75,12 +76,12 @@ function htmlInicio() {
       </section>
 
       <section class="painel">
-        <div class="cab"><h2>Cartões de crédito</h2>${cartoes().length ? `<button class="btn link" data-ir="cartoes">Ver faturas ›</button>` : ""}</div>
+        <div class="cab"><h2>Cartões de crédito</h2>${cartoes().length ? `<button class="btn link" data-ir="cartoes">Ver faturas ${svg("direita")}</button>` : ""}</div>
         ${cartoes().length ? `<ul class="lista simples">${cartoes().map((c) => {
           const f = faturaDoCartao(c, estado.mes, estado.lancamentos);
           return `
           <li class="item" data-abrir-cartao="${c.id}">
-            <span class="ic">💳</span>
+            ${icConta(c)}
             <span class="txt"><b>${esc(c.nome)}</b><small>${esc(pessoa(c.dono).nome)} · vence ${dataCurta(f.vencimento)} · <span class="status ${f.status}">${STATUS_FATURA[f.status]}</span></small></span>
             <span class="val">${dinheiro(f.total)}</span>
           </li>`;
@@ -89,21 +90,21 @@ function htmlInicio() {
       </section>
 
       <section class="painel">
-        <div class="cab"><h2>Contas a pagar</h2><button class="btn link" data-ir="fixas">Contas fixas ›</button></div>
+        <div class="cab"><h2>Contas a pagar</h2><button class="btn link" data-ir="fixas">Contas fixas ${svg("direita")}</button></div>
         ${apagar.length ? `
           <p class="total-apagar">${apagar.length} pendente(s) · <b>${dinheiro(apagar.reduce((s, i) => s + i.valor, 0))}</b></p>
           <ul class="lista simples">${apagar.slice(0, 8).map((i) => `
             <li class="item" data-apagar="${i.tipo}:${i.id}">
-              <span class="ic">${i.tipo === "fatura" ? "💳" : i.tipo === "fixa" ? "📌" : "🧾"}</span>
+              ${i.tipo === "fatura" ? icConta({ tipo: "cartao" }) : icCat(i.tipo === "fixa" ? i.fixa.categoria : i.lanc.categoria, "despesa")}
               <span class="txt"><b>${esc(i.nome)}</b><small class="${i.atrasada ? "neg" : ""}">${i.atrasada ? "venceu" : "vence"} ${dataCurta(i.vence)}</small></span>
               <span class="val">${i.valor ? dinheiro(i.valor) : "—"}</span>
             </li>`).join("")}</ul>
-          ${apagar.length > 8 ? `<p class="sub">e mais ${apagar.length - 8}…</p>` : ""}` : `<p class="vazio">Tudo pago neste mês. 🎉</p>`}
+          ${apagar.length > 8 ? `<p class="sub">e mais ${apagar.length - 8}…</p>` : ""}` : `<p class="vazio">Tudo pago neste mês.</p>`}
         ${areceber.length ? `<p class="sub">A receber: ${areceber.length} lançamento(s) · ${dinheiro(areceber.reduce((s, l) => s + l.valor, 0))}</p>` : ""}
       </section>
 
       <section class="painel">
-        <div class="cab"><h2>Limite de gastos</h2><button class="btn link" data-ir="limites">Ajustar ›</button></div>
+        <div class="cab"><h2>Limite de gastos</h2><button class="btn link" data-ir="limites">Ajustar ${svg("direita")}</button></div>
         ${r.receitas === 0 ? `<p class="dica">Lance as receitas do mês para calcular quanto cabe em cada grupo.</p>` : ""}
         ${r.grupos.filter((g) => g.meta || g.gasto).map(htmlBarraGrupo).join("") || `<p class="vazio">Sem metas para mostrar.</p>`}
       </section>
@@ -120,7 +121,7 @@ function htmlBarraGrupo({ grupo: g, meta, gasto, resta, uso }) {
   const largura = Math.min(100, uso === Infinity ? 100 : uso * 100);
   return `
     <button class="grupo-linha" data-ir-filtro='{"grupo":"${g.id}"}'>
-      <span class="rotulo">${g.icone || ""} ${esc(g.nome)} <small>${g.percentual || 0}%</small></span>
+      <span class="rotulo"><span class="g-ic">${icGrupo(g.id)}</span>${esc(g.nome)} <small>${g.percentual || 0}%</small></span>
       <span class="valor">${dinheiro(gasto)} <small>de ${dinheiro(meta)}</small></span>
       <span class="trilho ${nivel}"><span style="width:${largura}%"></span></span>
       <small class="resta ${nivel}">${meta === 0 && gasto === 0 ? "" : resta >= 0 ? `sobram ${dinheiro(resta)}` : `passou ${dinheiro(-resta)}`}</small>
@@ -154,7 +155,7 @@ function htmlGraficoCategorias(r) {
       <ul class="legenda">${principais.map(([nome, v], i) => `
         <li ${nome !== "Demais categorias" ? `data-ir-filtro='${JSON.stringify({ categoria: nome }).replace(/'/g, "&#39;")}'` : ""}>
           <span class="ponto" style="background:${CORES_GRAFICO[i % CORES_GRAFICO.length]}"></span>
-          <span class="nome">${nome === "Demais categorias" ? "" : iconeCat(nome) + " "}${esc(nome)}</span>
+          <span class="nome">${esc(nome)}</span>
           <span class="pct">${Math.round((v / total) * 100)}%</span>
           <b>${dinheiro(v)}</b>
         </li>`).join("")}</ul>
@@ -199,9 +200,9 @@ function htmlLancamentos() {
   return `
     <div class="cab-pagina"><h1>Lançamentos</h1>
       <div class="atalhos pequenos">
-        <button class="btn atalho despesa" data-novo="despesa">− Despesa</button>
-        <button class="btn atalho receita" data-novo="receita">+ Receita</button>
-        <button class="btn atalho" data-novo="transferencia">⇄</button>
+        <button class="btn atalho despesa" data-novo="despesa">${svg("saida")} Despesa</button>
+        <button class="btn atalho receita" data-novo="receita">${svg("entrada")} Receita</button>
+        <button class="btn atalho" data-novo="transferencia" title="Transferência">${svg("transferir")}</button>
       </div>
     </div>
     <section class="filtros">
@@ -211,9 +212,9 @@ function htmlLancamentos() {
         <option value="__despesa" ${f.grupo === "__despesa" ? "selected" : ""}>Só despesas</option>
         <option value="__receita" ${f.grupo === "__receita" ? "selected" : ""}>Só receitas</option>
         <option value="__transf" ${f.grupo === "__transf" ? "selected" : ""}>Transferências</option>
-        <optgroup label="Grupo">${gruposOrdenados().map((g) => `<option value="${g.id}" ${f.grupo === g.id ? "selected" : ""}>${g.icone || ""} ${esc(g.nome)}</option>`).join("")}</optgroup>
+        <optgroup label="Grupo">${gruposOrdenados().map((g) => `<option value="${g.id}" ${f.grupo === g.id ? "selected" : ""}>${esc(g.nome)}</option>`).join("")}</optgroup>
       </select>
-      <select id="f-conta"><option value="">Todas as contas</option>${estado.contas.map((c) => `<option value="${c.id}" ${f.conta === c.id ? "selected" : ""}>${iconeConta(c)} ${esc(c.nome)}</option>`).join("")}</select>
+      <select id="f-conta"><option value="">Todas as contas</option>${estado.contas.map((c) => `<option value="${c.id}" ${f.conta === c.id ? "selected" : ""}>${esc(c.nome)}${c.tipo === "cartao" ? " (cartão)" : ""}</option>`).join("")}</select>
       <select id="f-categoria"><option value="">Todas as categorias</option>${cats.map((c) => `<option ${f.categoria === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
       <select id="f-pessoa"><option value="">Os dois</option>${pessoas.map((p) => `<option value="${p.id}" ${f.pessoa === p.id ? "selected" : ""}>${esc(p.nome)}</option>`).join("")}</select>
       <select id="f-status"><option value="">Pagos e pendentes</option><option value="pago" ${f.status === "pago" ? "selected" : ""}>Só pagos</option><option value="pendente" ${f.status === "pendente" ? "selected" : ""}>Só pendentes</option></select>
@@ -236,7 +237,7 @@ export function htmlItem(l) {
     return `
       <li class="item" data-editar="${l.id}">
         ${htmlStatus(l, false)}
-        <span class="ic">⇄</span>
+        <span class="cat-ic neutro">${svg("transferir")}</span>
         <span class="txt"><b>${esc(l.descricao || "Transferência")}</b>
           <small><span class="etiqueta">${d?.tipo === "cartao" ? `Pagamento de fatura ${l.faturaDe ? nomeMes(l.faturaDe) : ""}` : "Transferência"}</span> ${esc(c?.nome || "?")} → ${esc(d?.nome || "?")}</small></span>
         <span class="val">${dinheiro(l.valor)}</span>
@@ -251,19 +252,19 @@ export function htmlItem(l) {
   return `
     <li class="item ${estaPago(l) ? "" : "pendente"}" data-editar="${l.id}">
       ${htmlStatus(l, c?.tipo === "cartao")}
-      <span class="ic">${iconeCat(l.categoria)}</span>
+      ${icCat(l.categoria, l.tipo)}
       <span class="txt">
         <b>${esc(l.descricao || l.categoria)}</b>
-        <small>${etiqueta}${c ? ` ${iconeConta(c)} ${esc(c.nome)}` : ""}${parcela}</small>
+        <small>${etiqueta}${c ? ` <span class="mini">${iconeConta(c)}</span>${esc(c.nome)}` : ""}${parcela}</small>
       </span>
       <span class="val ${l.tipo}">${l.tipo === "receita" ? "+" : "−"}${dinheiro(l.valor)}</span>
     </li>`;
 }
 
 function htmlStatus(l, noCartao) {
-  if (noCartao) return `<span class="status-pago cartao" title="No cartão: entra na fatura">💳</span>`;
+  if (noCartao) return `<span class="status-pago cartao" title="No cartão: entra na fatura">${svg("cartao")}</span>`;
   const pago = estaPago(l);
-  return `<button class="status-pago ${pago ? "ok" : ""}" data-alternar="${l.id}" title="${pago ? "Pago. Toque para marcar como pendente" : "Pendente. Toque para marcar como pago"}">${pago ? "✓" : ""}</button>`;
+  return `<button class="status-pago ${pago ? "ok" : ""}" data-alternar="${l.id}" title="${pago ? "Pago. Toque para marcar como pendente" : "Pendente. Toque para marcar como pago"}">${pago ? svg("check") : ""}</button>`;
 }
 
 // ---------- Contas fixas ----------
@@ -275,7 +276,7 @@ function htmlFixas() {
   const pago = lista.reduce((s, f) => s + f.pago, 0);
   const hoje = hojeISO();
   return `
-    <div class="cab-pagina"><h1>Contas fixas</h1><button class="btn" id="gerenciar-fixas">✏️ Editar lista</button></div>
+    <div class="cab-pagina"><h1>Contas fixas</h1><button class="btn" id="gerenciar-fixas">${svg("lapis")} Editar lista</button></div>
     <section class="totais-lista">
       <div><span>Total do mês</span><b>${dinheiro(previsto)}</b></div>
       <div><span>Já pago</span><b class="pos">${dinheiro(pago)}</b></div>
@@ -288,8 +289,8 @@ function htmlFixas() {
       const atrasada = !paga && vence < hoje;
       return `
       <li class="item ${paga ? "paga" : ""}" data-fixa="${f.id}" ${paga ? `data-editar="${pagamentos[0].id}"` : ""}>
-        <span class="status-pago ${paga ? "ok" : ""}">${paga ? "✓" : ""}</span>
-        <span class="ic">${iconeCat(f.categoria)}</span>
+        <span class="status-pago ${paga ? "ok" : ""}">${paga ? svg("check") : ""}</span>
+        ${icCat(f.categoria, "despesa")}
         <span class="txt">
           <b>${esc(f.nome)}</b>
           <small class="${atrasada ? "neg" : ""}">${paga ? `paga em ${dataCurta(pagamentos[0].data)}${conta(pagamentos[0].contaId) ? ` · ${esc(conta(pagamentos[0].contaId).nome)}` : ""}` : `${atrasada ? "venceu" : "vence"} ${dataCurta(vence)}${f.valor ? "" : " · valor a definir"}`}</small>
@@ -303,12 +304,12 @@ function htmlFixas() {
 function htmlGerenciarFixas() {
   const lista = [...estado.fixas].sort((a, b) => (a.ativa === false) - (b.ativa === false) || a.nome.localeCompare(b.nome));
   return `
-    <div class="cab-pagina"><h1>Editar contas fixas</h1><button class="btn" id="voltar-fixas">‹ Voltar</button></div>
+    <div class="cab-pagina"><h1>Editar contas fixas</h1><button class="btn" id="voltar-fixas">${svg("esquerda")} Voltar</button></div>
     <section class="painel">
       <div class="cab"><p class="sub">Valor previsto e dia de vencimento de cada conta.</p><button class="btn pequeno" id="nova-fixa">+ Adicionar</button></div>
       <ul class="lista simples">${lista.map((f) => `
         <li class="item ${f.ativa === false ? "inativa" : ""}" data-editar-fixa="${f.id}">
-          <span class="ic">${iconeCat(f.categoria)}</span>
+          ${icCat(f.categoria, "despesa")}
           <span class="txt"><b>${esc(f.nome)}</b>
             <small>dia ${f.dia || "?"} · ${f.meses?.length ? f.meses.map((m) => NOMES_MESES[m - 1]).join(", ") : "todo mês"}${f.ativa === false ? " · desativada" : ""}</small></span>
           <span class="val">${f.valor ? dinheiro(f.valor) : "—"}</span>
@@ -334,7 +335,7 @@ function htmlCartoes() {
   const pessoal = f.itens.filter((l) => l.tipo === "despesa" && grupoDe(l, estado.categorias) === "pessoal").reduce((s, l) => s + l.valor, 0);
   return `
     <div class="cab-pagina"><h1>Cartões de crédito</h1><button class="btn pequeno" data-nova-conta="cartao">+ Cartão</button></div>
-    <div class="abas-cartao">${lista.map((c) => `<button class="chip ${c.id === atual.id ? "ativo" : ""}" data-abrir-cartao="${c.id}">💳 ${esc(c.nome)}</button>`).join("")}</div>
+    <div class="abas-cartao">${lista.map((c) => `<button class="chip ${c.id === atual.id ? "ativo" : ""}" data-abrir-cartao="${c.id}">${svg("cartao")} ${esc(c.nome)}</button>`).join("")}</div>
     <section class="painel fatura ${f.status}">
       <div class="cab">
         <div><h2>Fatura de ${nomeMes(estado.mes)}</h2>
@@ -370,7 +371,7 @@ function htmlContas() {
     <section class="totais-lista"><div><span>Saldo geral</span><b class="${total < 0 ? "neg" : ""}">${dinheiro(total)}</b></div></section>
     ${lista.length ? `<ul class="lista">${lista.map((c) => `
       <li class="item" data-editar-conta="${c.id}">
-        <span class="ic">${iconeConta(c)}</span>
+        ${icConta(c)}
         <span class="txt"><b>${esc(c.nome)}</b><small><span class="ponto" style="background:${pessoa(c.dono).cor}"></span>${esc(pessoa(c.dono).nome)} · ${TIPOS_CONTA[c.tipo]}${saldos[c.id].previsto !== saldos[c.id].atual ? ` · previsto ${dinheiro(saldos[c.id].previsto)}` : ""}</small></span>
         <span class="val ${saldos[c.id].atual < 0 ? "neg" : "azul"}">${dinheiro(saldos[c.id].atual)}</span>
       </li>`).join("")}</ul>` : `<p class="vazio">Cadastre as contas bancárias de cada um. Informe o saldo atual como saldo inicial.</p>`}
@@ -386,12 +387,12 @@ function htmlCategorias() {
     <section class="painel">
       <h2>Despesas, por grupo</h2>
       ${gruposOrdenados().map((g) => `
-        <h3 class="subtitulo">${g.icone || ""} ${esc(g.nome)}</h3>
-        <div class="chips">${catsDe((c) => c.tipo === "despesa" && (c.grupo || "casa") === g.id).map((c) => `<button class="chip" data-cat="${c.id}">${c.icone || ""} ${esc(c.nome)}</button>`).join("") || `<small>nenhuma</small>`}</div>`).join("")}
+        <h3 class="subtitulo"><span class="g-ic">${icGrupo(g.id)}</span>${esc(g.nome)}</h3>
+        <div class="chips">${catsDe((c) => c.tipo === "despesa" && (c.grupo || "casa") === g.id).map((c) => `<button class="chip" data-cat="${c.id}">${icCat(c.nome, c.tipo, "mini")} ${esc(c.nome)}</button>`).join("") || `<small>nenhuma</small>`}</div>`).join("")}
     </section>
     <section class="painel">
       <h2>Receitas</h2>
-      <div class="chips">${catsDe((c) => c.tipo === "receita").map((c) => `<button class="chip" data-cat="${c.id}">${c.icone || ""} ${esc(c.nome)}</button>`).join("")}</div>
+      <div class="chips">${catsDe((c) => c.tipo === "receita").map((c) => `<button class="chip" data-cat="${c.id}">${icCat(c.nome, c.tipo, "mini")} ${esc(c.nome)}</button>`).join("")}</div>
     </section>`;
 }
 
@@ -414,7 +415,7 @@ function htmlLimites() {
       <p class="sub">Quanto da receita do mês cada grupo pode usar.</p>
       <form id="form-metas" class="metas">
         ${gruposOrdenados().map((g) => `
-          <label class="meta-linha"><span>${g.icone || ""} ${esc(g.nome)}</span>
+          <label class="meta-linha"><span><span class="g-ic">${icGrupo(g.id)}</span>${esc(g.nome)}</span>
             <span class="pct"><input type="number" name="${g.id}" min="0" max="100" step="1" value="${g.percentual || 0}">%</span></label>`).join("")}
         <p class="total-metas ${totalPct === 100 ? "" : "alerta"}">Total: <b id="total-pct">${totalPct}%</b></p>
         <button class="btn primario" type="submit">Salvar metas</button>
@@ -428,23 +429,24 @@ function htmlMais() {
   return `
     <div class="cab-pagina"><h1>Mais</h1></div>
     <ul class="lista menu-mais">
-      <li class="item" data-ir="contas"><span class="ic">🏦</span><span class="txt"><b>Contas</b><small>saldos das contas bancárias</small></span><span class="seta">›</span></li>
-      <li class="item" data-ir="limites"><span class="ic">🎯</span><span class="txt"><b>Limite de gastos</b><small>metas dos grupos</small></span><span class="seta">›</span></li>
-      <li class="item" data-ir="categorias"><span class="ic">🏷️</span><span class="txt"><b>Categorias</b></span><span class="seta">›</span></li>
-      <li class="item" id="exportar"><span class="ic">⬇️</span><span class="txt"><b>Exportar lançamentos</b><small>planilha CSV (abre no Excel)</small></span><span class="seta">›</span></li>
-      <li class="item" id="sair-mais"><span class="ic">🚪</span><span class="txt"><b>Sair</b><small>${esc(estado.usuario.email)}</small></span></li>
+      <li class="item" data-ir="contas">${icConta({ tipo: "conta" })}<span class="txt"><b>Contas</b><small>saldos das contas bancárias</small></span><span class="seta">${svg("direita")}</span></li>
+      <li class="item" data-ir="limites"><span class="cat-ic neutro">${svg("alvo")}</span><span class="txt"><b>Limite de gastos</b><small>metas dos grupos</small></span><span class="seta">${svg("direita")}</span></li>
+      <li class="item" data-ir="categorias"><span class="cat-ic neutro">${svg("etiqueta")}</span><span class="txt"><b>Categorias</b></span><span class="seta">${svg("direita")}</span></li>
+      <li class="item" data-alternar-tema><span class="cat-ic neutro">${svg(temaEscuroAtivo() ? "lua" : "sol")}</span><span class="txt"><b>Modo escuro</b><small>${temaEscuroAtivo() ? "ligado" : "desligado"}</small></span><span class="chave ${temaEscuroAtivo() ? "ligada" : ""}"></span></li>
+      <li class="item" id="exportar"><span class="cat-ic neutro">${svg("baixar")}</span><span class="txt"><b>Exportar lançamentos</b><small>planilha CSV (abre no Excel)</small></span><span class="seta">${svg("direita")}</span></li>
+      <li class="item" id="sair-mais"><span class="cat-ic neutro">${svg("sair")}</span><span class="txt"><b>Sair</b><small>${esc(estado.usuario.email)}</small></span></li>
     </ul>`;
 }
 
 export const TELAS = {
-  inicio: { titulo: "Visão geral", icone: "🏠", html: htmlInicio, usaMes: true },
-  lancamentos: { titulo: "Lançamentos", icone: "📋", html: htmlLancamentos, usaMes: true },
-  fixas: { titulo: "Contas fixas", icone: "📌", html: htmlFixas, usaMes: true },
-  limites: { titulo: "Limite de gastos", icone: "🎯", html: htmlLimites, usaMes: true },
-  cartoes: { titulo: "Cartões", icone: "💳", html: htmlCartoes, usaMes: true },
-  contas: { titulo: "Contas", icone: "🏦", html: htmlContas, usaMes: false },
-  categorias: { titulo: "Categorias", icone: "🏷️", html: htmlCategorias, usaMes: false },
-  mais: { titulo: "Mais", icone: "☰", html: htmlMais, usaMes: false },
+  inicio: { titulo: "Visão geral", icone: "painel", html: htmlInicio, usaMes: true },
+  lancamentos: { titulo: "Lançamentos", icone: "lista", html: htmlLancamentos, usaMes: true },
+  fixas: { titulo: "Contas fixas", icone: "calendario", html: htmlFixas, usaMes: true },
+  limites: { titulo: "Limite de gastos", icone: "alvo", html: htmlLimites, usaMes: true },
+  cartoes: { titulo: "Cartões", icone: "cartao", html: htmlCartoes, usaMes: true },
+  contas: { titulo: "Contas", icone: "banco", html: htmlContas, usaMes: false },
+  categorias: { titulo: "Categorias", icone: "etiqueta", html: htmlCategorias, usaMes: false },
+  mais: { titulo: "Mais", icone: "menu", html: htmlMais, usaMes: false },
 };
 
 // ---------- Eventos comuns a todas as telas ----------
@@ -473,6 +475,7 @@ export function ligarEventos(el, nav) {
   on("[data-cat]", (b) => formCategoria(estado.categorias.find((c) => c.id === b.dataset.cat)));
   $("#nova-cat", el)?.addEventListener("click", () => formCategoria({ tipo: "despesa", grupo: "casa" }));
   $("#olho", el)?.addEventListener("click", () => nav.alternarOcultar());
+  on("[data-alternar-tema]", () => nav.alternarTema());
   $("#gerenciar-fixas", el)?.addEventListener("click", () => { estado.gerenciarFixas = true; nav.render(); });
   $("#voltar-fixas", el)?.addEventListener("click", () => { estado.gerenciarFixas = false; nav.render(); });
   $("#nova-fixa", el)?.addEventListener("click", () => formFixa());

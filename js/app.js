@@ -1,6 +1,7 @@
 // Início do app: login, estrutura da tela (menu lateral / barra inferior), navegação e preparação dos dados.
 import * as store from "./store.js";
-import { estado, pessoas, pessoa, COLECOES, FILTRO_VAZIO, gravarPreferencia } from "./estado.js";
+import { estado, pessoas, pessoa, COLECOES, FILTRO_VAZIO, gravarPreferencia, aplicarTema, alternarTema, temaEscuroAtivo } from "./estado.js";
+import { svg } from "./icones.js";
 import { $, $$, esc, toast, abrirModal, erroMsg } from "./ui.js";
 import { TELAS, ligarEventos } from "./telas.js";
 import { formLancamento, exportarCSV } from "./formularios.js";
@@ -16,6 +17,8 @@ const MENU_INFERIOR = ["inicio", "lancamentos", "fixas", "cartoes", "mais"];
 // ---------- Inicialização e login ----------
 
 async function iniciar() {
+  aplicarTema();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { aplicarTema(); render(); });
   if (store.modoDemo) {
     document.body.classList.add("demo");
     pessoas.forEach((p) => { if (!p.email) p.email = `${p.id}@demo`; });
@@ -39,7 +42,7 @@ function telaLogin() {
   const demo = store.modoDemo;
   $("#app").innerHTML = `
     <section class="login">
-      <div class="logo">💰</div>
+      <div class="logo">${svg("carteira")}</div>
       <h1>Contas da Casa</h1>
       <p>Gastos e receitas do casal, num lugar só.</p>
       ${demo
@@ -54,7 +57,7 @@ function telaLogin() {
 function telaSemAcesso(email) {
   $("#app").innerHTML = `
     <section class="login">
-      <div class="logo">🔒</div>
+      <div class="logo">${svg("cadeado")}</div>
       <h1>Sem acesso</h1>
       <p>A conta <b>${esc(email)}</b> não está autorizada a usar este app.</p>
       <button class="btn" id="btn-sair">Entrar com outra conta</button>
@@ -64,7 +67,7 @@ function telaSemAcesso(email) {
 
 function telaErro(msg, e) {
   console.error(e);
-  $("#app").innerHTML = `<section class="login"><div class="logo">⚠️</div><h1>Ops</h1><p>${esc(msg)}</p></section>`;
+  $("#app").innerHTML = `<section class="login"><div class="logo">${svg("alerta")}</div><h1>Ops</h1><p>${esc(msg)}</p></section>`;
 }
 
 // ---------- Estrutura da tela ----------
@@ -73,33 +76,34 @@ let jaAbriu = false;
 function abrirApp() {
   if (jaAbriu) return;
   jaAbriu = true;
-  const item = (id) => `<button data-aba="${id}"><span class="i">${TELAS[id].icone}</span><span>${TELAS[id].titulo}</span></button>`;
+  const item = (id) => `<button data-aba="${id}"><span class="i">${svg(TELAS[id].icone)}</span><span>${TELAS[id].titulo}</span></button>`;
   $("#app").innerHTML = `
     <aside class="lateral">
-      <div class="marca">💰 <b>Contas da Casa</b></div>
+      <div class="marca"><span class="marca-ic">${svg("carteira")}</span><b>Contas da Casa</b></div>
       <nav>${MENU_LATERAL.map(item).join("")}</nav>
       <div class="lateral-rodape">
-        <button class="btn link" id="exportar-lateral">⬇️ Exportar lançamentos</button>
+        <button class="linha-lateral" id="tema-lateral"><span class="i">${svg("lua")}</span><span>Modo escuro</span><span class="chave"></span></button>
+        <button class="linha-lateral" id="exportar-lateral"><span class="i">${svg("baixar")}</span><span>Exportar lançamentos</span></button>
         <div class="usuario">
           <span class="avatar" style="background:${estado.eu.cor}">${esc(estado.eu.nome[0])}</span>
           <span class="txt"><b>${esc(estado.eu.nome)}</b><small>${esc(estado.usuario.email)}</small></span>
-          <button class="btn link" id="sair-lateral" title="Sair">Sair</button>
+          <button class="btn link" id="sair-lateral" title="Sair">${svg("sair")}</button>
         </div>
       </div>
     </aside>
     <div class="principal">
       <header class="topo">
         <div class="seletor-mes">
-          <button class="icone" id="mes-ant" aria-label="Mês anterior">‹</button>
+          <button class="icone" id="mes-ant" aria-label="Mês anterior">${svg("esquerda")}</button>
           <button class="mes-nome" id="mes-hoje" title="Voltar ao mês atual"></button>
-          <button class="icone" id="mes-prox" aria-label="Próximo mês">›</button>
+          <button class="icone" id="mes-prox" aria-label="Próximo mês">${svg("direita")}</button>
         </div>
         <span class="titulo-topo"></span>
         <button class="avatar so-celular" id="btn-perfil" style="background:${estado.eu.cor}" title="${esc(estado.usuario.email)}">${esc(estado.eu.nome[0])}</button>
       </header>
       <main id="conteudo"><p class="carregando">Carregando…</p></main>
     </div>
-    <button class="fab" id="btn-novo" aria-label="Novo lançamento">+</button>
+    <button class="fab" id="btn-novo" aria-label="Novo lançamento">${svg("mais")}</button>
     <nav class="abas">${MENU_INFERIOR.map(item).join("")}</nav>
     <div id="modal" class="modal" hidden></div>
     <div id="toast" class="toast" hidden></div>`;
@@ -111,6 +115,7 @@ function abrirApp() {
   $("#btn-perfil").onclick = menuPerfil;
   $("#sair-lateral").onclick = () => store.sair();
   $("#exportar-lateral").onclick = exportarCSV;
+  $("#tema-lateral").onclick = trocarTema;
   $$("[data-aba]").forEach((b) => (b.onclick = () => irPara(b.dataset.aba)));
 
   const erro = (e) => {
@@ -132,9 +137,9 @@ function escolherNovo() {
   abrirModal(`
     <h2>O que você quer lançar?</h2>
     <div class="acoes coluna">
-      <button class="btn atalho despesa grande" data-n="despesa">− Despesa</button>
-      <button class="btn atalho receita grande" data-n="receita">+ Receita</button>
-      <button class="btn atalho grande" data-n="transferencia">⇄ Transferência / pagar fatura</button>
+      <button class="btn atalho despesa grande" data-n="despesa">${svg("saida")} Despesa</button>
+      <button class="btn atalho receita grande" data-n="receita">${svg("entrada")} Receita</button>
+      <button class="btn atalho grande" data-n="transferencia">${svg("transferir")} Transferência / pagar fatura</button>
       <button class="btn link" data-fechar>Cancelar</button>
     </div>`, (m) => $$("[data-n]", m).forEach((b) => (b.onclick = () => formLancamento(null, { tipo: b.dataset.n }))));
 }
@@ -145,9 +150,13 @@ function menuPerfil() {
     <p class="sub">${esc(estado.usuario.email)}</p>
     ${store.modoDemo ? `<p class="aviso">Modo demonstração. Os dados ficam só neste navegador.</p>` : ""}
     <div class="acoes coluna">
-      <button class="btn" id="sair">Sair</button>
+      <button class="btn" id="tema-perfil">${svg(temaEscuroAtivo() ? "sol" : "lua")} ${temaEscuroAtivo() ? "Usar modo claro" : "Usar modo escuro"}</button>
+      <button class="btn" id="sair">${svg("sair")} Sair</button>
       <button class="btn link" data-fechar>Fechar</button>
-    </div>`, (m) => (m.querySelector("#sair").onclick = () => store.sair()));
+    </div>`, (m) => {
+    m.querySelector("#sair").onclick = () => store.sair();
+    m.querySelector("#tema-perfil").onclick = () => { trocarTema(); menuPerfil(); };
+  });
 }
 
 const tudoCarregado = () => Object.values(estado.carregado).every(Boolean);
@@ -173,11 +182,17 @@ function alternarOcultar() {
   render();
 }
 
-const nav = { irPara, render, alternarOcultar };
+function trocarTema() {
+  alternarTema();
+  render();
+}
+
+const nav = { irPara, render, alternarOcultar, alternarTema: trocarTema };
 
 function render() {
   if (!estado.eu || !$("#conteudo")) return;
   const tela = TELAS[estado.aba];
+  $("#tema-lateral .chave")?.classList.toggle("ligada", temaEscuroAtivo());
   $("#mes-hoje").textContent = nomeMes(estado.mes);
   $(".seletor-mes").hidden = !tela.usaMes;
   $(".titulo-topo").textContent = tela.usaMes ? "" : tela.titulo;

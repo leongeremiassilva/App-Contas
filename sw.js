@@ -1,6 +1,6 @@
 // Service worker mínimo: permite instalar o app na tela inicial.
 // Estratégia "rede primeiro": sempre busca a versão nova; usa o cache só se estiver sem internet.
-const CACHE = "contas-v3";
+const CACHE = "contas-v4";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
