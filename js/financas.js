@@ -450,7 +450,8 @@ export function parcelamentos(lancamentos, mesRef) {
     ps.sort((a, b) => a.parcela - b.parcela);
     const restantes = ps.filter((p) => p.competencia > mesRef);
     const doMes = ps.find((p) => p.competencia === mesRef) || null;
-    const pagas = ps.filter((p) => p.competencia < mesRef).length;
+    const anteriores = (ps[0].parcela || 1) - 1; // parcelas pagas antes de lançar no app
+    const pagas = anteriores + ps.filter((p) => p.competencia < mesRef).length;
     return {
       grupoId: ps[0].grupoId, primeira: ps[0], parcelas: ps, total: ps.reduce((s, p) => s + p.valor, 0),
       totalParcelas: ps[0].totalParcelas || ps.length, doMes, pagas, restantes,

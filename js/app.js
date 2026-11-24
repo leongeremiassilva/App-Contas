@@ -2,7 +2,7 @@
 import * as store from "./store.js";
 import { estado, pessoas, pessoa, COLECOES, FILTRO_VAZIO, gravarPreferencia, aplicarTema, alternarTema, temaEscuroAtivo } from "./estado.js";
 import { svg } from "./icones.js";
-import { $, $$, esc, toast, abrirModal, erroMsg } from "./ui.js";
+import { $, $$, esc, toast, abrirModal, fecharModal, erroMsg } from "./ui.js";
 import { TELAS, ligarEventos } from "./telas.js";
 import { avisosAtuais, abrirAvisos } from "./telas-extras.js";
 import { formLancamento, exportarCSV } from "./formularios.js";
@@ -147,8 +147,14 @@ function escolherNovo() {
       <button class="btn atalho despesa grande" data-n="despesa">${svg("saida")} Despesa</button>
       <button class="btn atalho receita grande" data-n="receita">${svg("entrada")} Receita</button>
       <button class="btn atalho grande" data-n="transferencia">${svg("transferir")} Transferência / pagar fatura</button>
+      <button class="btn atalho grande" data-n="fatura">${svg("cartao")} Compras da fatura do cartão</button>
       <button class="btn link" data-fechar>Cancelar</button>
-    </div>`, (m) => $$("[data-n]", m).forEach((b) => (b.onclick = () => formLancamento(null, { tipo: b.dataset.n }))));
+    </div>`, (m) => $$("[data-n]", m).forEach((b) => (b.onclick = () => {
+      if (b.dataset.n !== "fatura") return formLancamento(null, { tipo: b.dataset.n });
+      fecharModal();
+      irPara("cartoes");
+      toast("Escolha o cartão e a fatura (mês no topo) e toque em Adicionar compras nesta fatura.");
+    })));
 }
 
 function menuPerfil() {

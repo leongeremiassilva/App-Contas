@@ -551,7 +551,7 @@ export function htmlParcelamentos() {
       const l = p.doMes || p.primeira;
       const c = conta(l.contaId);
       const atual = p.doMes ? `parcela ${p.doMes.parcela} de ${p.totalParcelas} neste mês` : p.situacao === "futuro" ? `começa em ${nomeMes(p.inicio)}` : p.situacao === "terminado" ? `terminou em ${nomeMes(p.fim)}` : `${p.pagas} de ${p.totalParcelas} pagas`;
-      const progresso = Math.min(1, (p.pagas + (p.doMes ? 1 : 0)) / p.totalParcelas);
+      const progresso = Math.min(1, (p.doMes ? p.doMes.parcela : p.pagas) / p.totalParcelas);
       return `
         <li class="item parcelamento" data-editar="${l.id}">
           ${icCat(l.categoria, "despesa")}

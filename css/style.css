@@ -593,3 +593,8 @@ label.check span small { font-size: 12px; }
   .lateral-rodape { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--borda); gap: 4px; }
   .linha-lateral { padding: 7px 12px; }
 }
+.contador-fatura { margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--fundo); font-size: 14px; }
+.linha-parcela { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.linha-parcela input { width: 80px; text-align: center; }
+.compras-fatura .acoes { position: sticky; bottom: -18px; background: var(--cartao); padding: 10px 0 4px; }
+body.com-modal .toast { top: calc(12px + env(safe-area-inset-top)); bottom: auto; left: 50%; }

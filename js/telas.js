@@ -13,6 +13,7 @@ import {
 } from "./financas.js";
 import {
   formLancamento, formConta, formCategoria, formFixa, pagarFixa, pagarFatura, alternarPago, exportarCSV, formConferirSaldo, pagarPrestacao,
+  formComprasFatura,
 } from "./formularios.js";
 
 const CORES_GRAFICO = ["#16a34a", "#2f6fde", "#d9467a", "#f59e0b", "#8b5cf6", "#0891b2", "#a3a3a3"];
@@ -368,10 +369,11 @@ function htmlCartoes() {
       </div>
       <div class="acoes">
         <button class="btn link" data-editar-conta="${atual.id}">Editar cartão</button>
+        <button class="btn suave" data-compras-fatura="${atual.id}">${svg("mais")} Adicionar compras nesta fatura</button>
         ${f.falta > 0 ? `<button class="btn primario" id="pagar-fatura">Pagar fatura</button>` : ""}
       </div>
     </section>
-    ${itens.length ? `<ul class="lista">${itens.map(htmlItem).join("")}</ul>` : `<p class="vazio">Nenhuma compra nesta fatura.</p>`}
+    ${itens.length ? `<ul class="lista">${itens.map(htmlItem).join("")}</ul>` : `<p class="vazio">Nenhuma compra nesta fatura. Toque em <b>Adicionar compras nesta fatura</b> e vá passando a fatura do banco linha por linha.</p>`}
     ${f.pagamentos.length ? `<h3 class="dia">Pagamentos</h3><ul class="lista">${f.pagamentos.map(htmlItem).join("")}</ul>` : ""}
     ${proximas.length ? `
       <section class="painel"><h2>Próximas faturas</h2>${proximas.map((p) => `
@@ -496,6 +498,7 @@ export function ligarEventos(el, nav) {
   on("[data-novo]", (b) => formLancamento(null, { tipo: b.dataset.novo }));
   on("[data-nova-conta]", (b) => formConta(null, b.dataset.novaConta));
   on("[data-editar-conta]", (b) => formConta(conta(b.dataset.editarConta)));
+  on("[data-compras-fatura]", (b) => formComprasFatura(conta(b.dataset.comprasFatura), estado.mes));
   on("[data-conferir]", (b, ev) => { ev.stopPropagation(); formConferirSaldo(conta(b.dataset.conferir)); });
   on("[data-abrir-cartao]", (b) => { estado.cartaoAberto = b.dataset.abrirCartao; nav.irPara("cartoes"); });
   on("[data-ir]", (b) => nav.irPara(b.dataset.ir));

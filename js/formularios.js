@@ -6,9 +6,10 @@ import {
 } from "./estado.js";
 import { $$, esc, abrirModal, fecharModal, confirmar, toast, erroMsg } from "./ui.js";
 import { svg, ICONES_CATEGORIA } from "./icones.js";
+import { sugerirCategoria } from "./importar.js";
 import {
   moeda, paraCentavos, hojeISO, mesAtual, somarMeses, nomeMes, competencia, gerarLancamentos, grupoDe, estaPago, normalizarTag,
-  saldosDasContas, situacaoAcerto, dataCurta, TIPOS_EMPRESTIMO, situacaoEmprestimo,
+  saldosDasContas, situacaoAcerto, dataCurta, TIPOS_EMPRESTIMO, situacaoEmprestimo, faturaDoCartao, dividir,
 } from "./financas.js";
 
 const opcoesContas = (lista, selecionada, vazia = "") => `
@@ -65,7 +66,7 @@ export function formLancamento(l, pre = {}) {
       </div>
 
       <div class="duas">
-        <label>Data <input type="date" name="data" required value="${dataInicial}"></label>
+        <label><span class="rotulo-data">Data</span> <input type="date" name="data" required value="${dataInicial}"></label>
         <label class="so-receita">Recebido por <select name="pessoa">${pessoas.map((p) => `<option value="${p.id}" ${(v.pessoa || estado.eu.id) === p.id ? "selected" : ""}>${esc(p.nome)}</option>`).join("")}</select></label>
       </div>
 
@@ -149,6 +150,10 @@ export function formLancamento(l, pre = {}) {
       $$(".so-pessoal", m).forEach((e) => (e.hidden = t !== "despesa" || f.grupo.value !== "pessoal"));
       $$(".so-fatura", m).forEach((e) => (e.hidden = t !== "transferencia" || destino?.tipo !== "cartao"));
       $$(".so-pago", m).forEach((e) => (e.hidden = noCartao));
+      m.querySelector(".rotulo-data").textContent = t === "transferencia" ? "Data"
+        : noCartao ? "Data da compra"
+        : t === "receita" ? (f.pago.checked ? "Data do recebimento" : "Previsto para")
+        : f.pago.checked ? "Data do pagamento" : "Vencimento";
       const rm = m.querySelector(".rotulo-meta");
       if (rm) rm.textContent = t === "receita" ? "Resgate de meta de economia" : "Guardar para meta de economia";
       m.querySelector(".rotulo-pago").textContent = t === "receita" ? "Recebido" : t === "transferencia" ? "Já foi feita" : "Pago";
@@ -169,7 +174,7 @@ export function formLancamento(l, pre = {}) {
       atualizar();
     });
     f.destino.addEventListener("change", atualizar);
-    f.pago.addEventListener("change", () => (pagoMexido = true));
+    f.pago.addEventListener("change", () => { pagoMexido = true; atualizar(); });
     f.data.addEventListener("change", () => {
       if (!pagoMexido) f.pago.checked = f.data.value <= hojeISO();
       atualizar();
@@ -255,13 +260,17 @@ async function salvarLancamento(f, original, doGrupo, fixaId, mesFixa, emprestim
       const comp = original.grupoId || original.fixaId ? original.competencia : competencia(base.data, c);
       await store.update("lancamentos", original.id, { ...comum, valor: valorEste, competencia: comp });
     } else {
-      const primeira = doGrupo.reduce((a, b) => (a.parcela < b.parcela ? a : b));
-      const nova = gerarLancamentos({ ...base, criadoPor: primeira.criadoPor, criadoEm: primeira.criadoEm }, c, original.recorrencia, doGrupo.length, original.grupoId);
-      const porParcela = Object.fromEntries(doGrupo.map((x) => [x.parcela, x]));
-      await Promise.all(nova.map((n) => {
-        const atual = porParcela[n.parcela];
-        const pago = atual.id === original.id ? base.pago : noCartao ? true : estaPago(atual);
-        return store.update("lancamentos", atual.id, { ...n, pago, alteradoPor: estado.eu.id, alteradoEm: Date.now() });
+      // Mantém o mês e o número de cada parcela (inclusive compras que começaram no meio, ex.: 6 de 10);
+      // muda os dados em comum e, se o valor mudou, redistribui.
+      const ordenadas = [...doGrupo].sort((x, y) => (x.parcela || 0) - (y.parcela || 0));
+      const totalAntes = ordenadas.reduce((t, x) => t + x.valor, 0);
+      const valores = original.recorrencia === "parcelado"
+        ? (valor === totalAntes ? ordenadas.map((x) => x.valor) : dividir(valor, ordenadas.length))
+        : ordenadas.map(() => valor);
+      const { data, ...semData } = comum;
+      await Promise.all(ordenadas.map((x, i) => {
+        const pago = x.id === original.id ? base.pago : noCartao ? true : estaPago(x);
+        return store.update("lancamentos", x.id, { ...semData, data: x.id === original.id ? data : x.data, valor: valores[i], pago });
       }));
     }
     fecharModal();
@@ -946,3 +955,148 @@ export function pagarPrestacao(e, mes = estado.mes) {
     emprestimoId: e.id, mesFixa: mes, pago: true,
   });
 }
+
+// ---------- Adicionar compras direto na fatura do cartão ----------
+
+// Formulário curto, preso a um cartão e a uma fatura (mês de vencimento). Serve para passar a fatura
+// do banco linha por linha. "Parcela X de Y" lança essa parcela nesta fatura e as próximas nas seguintes.
+export function formComprasFatura(cartao, mes) {
+  if (!cartao) return;
+  const fatura = () => faturaDoCartaoLocal(cartao, mes);
+  const dataPadrao = () => {
+    const f = fatura();
+    const antesDoFechamento = somarDiasISO(f.fechamento, -1);
+    return hojeISO() < antesDoFechamento ? hojeISO() : antesDoFechamento;
+  };
+  const opcoesCat = () => gruposOrdenados().map((g) => {
+    const cats = estado.categorias.filter((c) => c.tipo === "despesa" && (c.grupo || "casa") === g.id).sort((a, b) => a.nome.localeCompare(b.nome));
+    return cats.length ? `<optgroup label="${esc(g.nome)}">${cats.map((c) => `<option value="${esc(c.nome)}">${esc(c.nome)}</option>`).join("")}</optgroup>` : "";
+  }).join("");
+  let lancadasAgora = 0;
+
+  abrirModal(`
+    <form autocomplete="off" class="tipo-despesa compras-fatura">
+      <h2>${esc(cartao.nome)} · fatura de ${nomeMes(mes)}</h2>
+      <p class="contador-fatura"></p>
+      <label>Valor <small>(como aparece na fatura; se for parcelada, o valor da parcela)</small>
+        <input name="valor" inputmode="decimal" required placeholder="0,00">
+      </label>
+      <label>Descrição <input name="descricao" required placeholder="Ex.: Muffato" list="sugestoes-fatura"></label>
+      <datalist id="sugestoes-fatura">${[...new Set(estado.lancamentos.map((x) => x.descricao).filter(Boolean))].slice(0, 300).map((d) => `<option value="${esc(d)}">`).join("")}</datalist>
+      <div class="duas">
+        <label>Categoria <select name="categoria">${opcoesCat()}</select></label>
+        <label class="so-sub">Subcategoria <select name="subcategoria"></select></label>
+      </div>
+      <div class="duas">
+        <label>Grupo <select name="grupo">${gruposOrdenados().map((g) => `<option value="${g.id}">${esc(g.nome)}</option>`).join("")}</select></label>
+        <label class="so-pessoal">Pessoal de <select name="pessoalDe">${pessoas.map((p) => `<option value="${p.id}" ${cartao.dono === p.id ? "selected" : ""}>${esc(p.nome)}</option>`).join("")}</select></label>
+      </div>
+      <div class="segmentado">
+        <label><input type="radio" name="forma" value="vista" checked><span>À vista</span></label>
+        <label><input type="radio" name="forma" value="parcela"><span>Parcelada</span></label>
+      </div>
+      <div class="linha-parcela" hidden>
+        <span>Parcela</span><input type="number" name="parcela" min="1" max="120" value="1">
+        <span>de</span><input type="number" name="totalParcelas" min="2" max="120" value="2">
+      </div>
+      <p class="sub info-parcela" hidden></p>
+      <label>Data da compra <small>(opcional; não muda a fatura)</small><input type="date" name="data" value="${dataPadrao()}"></label>
+      <div class="acoes">
+        <button type="button" class="btn link" data-fechar>Fechar</button>
+        <button type="submit" class="btn" data-modo="fechar">Salvar e fechar</button>
+        <button type="submit" class="btn primario" data-modo="outra">Salvar e adicionar outra</button>
+      </div>
+    </form>`, (m) => {
+    const f = m.querySelector("form");
+    let modo = "outra";
+    $$("[data-modo]", f).forEach((b) => b.addEventListener("click", () => (modo = b.dataset.modo)));
+    const contador = () => {
+      const fat = fatura();
+      m.querySelector(".contador-fatura").innerHTML =
+        `Lançado nesta fatura até agora: <b>${moeda(fat.total)}</b> em ${fat.itens.length} compra(s)${lancadasAgora ? ` · ${lancadasAgora} agora` : ""}. Compare com o total da fatura do banco.`;
+    };
+    const subs = () => {
+      const lista = subcategoriasDe(f.categoria.value);
+      f.subcategoria.innerHTML = `<option value="">—</option>` + lista.map((x) => `<option>${esc(x)}</option>`).join("");
+      m.querySelector(".so-sub").hidden = !lista.length;
+    };
+    const grupoDaCat = () => estado.categorias.find((c) => c.nome === f.categoria.value && c.tipo === "despesa")?.grupo || "casa";
+    const atualizar = () => {
+      const parcelada = f.forma.value === "parcela";
+      m.querySelector(".linha-parcela").hidden = !parcelada;
+      m.querySelector(".so-pessoal").hidden = f.grupo.value !== "pessoal";
+      const info = m.querySelector(".info-parcela");
+      const x = Number(f.parcela.value) || 1, y = Number(f.totalParcelas.value) || 1;
+      info.hidden = !parcelada;
+      if (parcelada) {
+        const restantes = Math.max(0, y - x);
+        info.textContent = x > y ? "A parcela não pode ser maior que o total."
+          : `Lança a parcela ${x}/${y} nesta fatura${restantes ? ` e as ${restantes} seguinte(s) até a fatura de ${nomeMes(somarMeses(mes, restantes))}` : " (é a última)"}.`;
+      }
+    };
+    const escolherCategoria = (nome, sub, grupo) => {
+      if (![...f.categoria.options].some((o) => o.value === nome)) return;
+      f.categoria.value = nome;
+      subs();
+      if (sub && [...f.subcategoria.options].some((o) => o.value === sub)) f.subcategoria.value = sub;
+      f.grupo.value = grupo || grupoDaCat();
+      atualizar();
+    };
+    contador();
+    escolherCategoria("Outros");
+    f.categoria.addEventListener("change", () => { subs(); f.grupo.value = grupoDaCat(); atualizar(); });
+    f.grupo.addEventListener("change", atualizar);
+    $$("[name=forma]", f).forEach((r) => r.addEventListener("change", atualizar));
+    f.parcela.addEventListener("input", atualizar);
+    f.totalParcelas.addEventListener("input", atualizar);
+    f.descricao.addEventListener("change", () => {
+      const historico = [...estado.lancamentos].sort((a, b) => (a.criadoEm || 0) - (b.criadoEm || 0));
+      const s = sugerirCategoria(f.descricao.value, -1, historico);
+      escolherCategoria(s.categoria, s.subcategoria, s.grupo);
+    });
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const valor = paraCentavos(f.valor.value);
+      if (!(valor > 0)) return toast("Informe o valor.");
+      const parcelada = f.forma.value === "parcela";
+      const x = parcelada ? Number(f.parcela.value) || 1 : 1;
+      const y = parcelada ? Number(f.totalParcelas.value) || 1 : 1;
+      if (parcelada && (y < 2 || x > y)) return toast("Confira a parcela: ela vai de 1 até o total.");
+      const grupoId = parcelada ? crypto.randomUUID?.() || String(Date.now()) : null;
+      const agora = Date.now();
+      const base = {
+        tipo: "despesa", valor, descricao: f.descricao.value.trim(), categoria: f.categoria.value,
+        subcategoria: f.subcategoria.value || null, grupo: f.grupo.value,
+        pessoalDe: f.grupo.value === "pessoal" ? f.pessoalDe.value : null,
+        data: f.data.value || dataPadrao(), pessoa: cartao.dono, contaId: cartao.id, contaDestinoId: null, faturaDe: null,
+        obs: "", fixaId: null, tags: [], metaId: null, pago: true,
+        recorrencia: parcelada ? "parcelado" : null, grupoId, totalParcelas: parcelada ? y : null,
+        criadoPor: estado.eu.id,
+      };
+      const lista = Array.from({ length: y - x + 1 }, (_, i) => ({
+        ...base, parcela: parcelada ? x + i : null, competencia: somarMeses(mes, i), criadoEm: agora + i,
+      }));
+      try {
+        await store.addMany("lancamentos", lista);
+        lancadasAgora++;
+        toast(parcelada ? `Parcela ${x}/${y} lançada${y > x ? ` (+${y - x} nas próximas faturas)` : ""}.` : "Compra lançada.");
+        if (modo === "fechar") return fecharModal();
+        f.valor.value = "";
+        f.descricao.value = "";
+        f.forma.value = "vista";
+        f.parcela.value = 1;
+        f.totalParcelas.value = 2;
+        atualizar();
+        setTimeout(contador, 50);
+        f.valor.focus();
+      } catch (err) { toast("Erro ao salvar: " + erroMsg(err)); }
+    });
+  });
+}
+
+const somarDiasISO = (iso, n) => {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const faturaDoCartaoLocal = (cartao, mes) => faturaDoCartao(cartao, mes, estado.lancamentos);
