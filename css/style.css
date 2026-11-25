@@ -598,3 +598,6 @@ label.check span small { font-size: 12px; }
 .linha-parcela input { width: 80px; text-align: center; }
 .compras-fatura .acoes { position: sticky; bottom: -18px; background: var(--cartao); padding: 10px 0 4px; }
 body.com-modal .toast { top: calc(12px + env(safe-area-inset-top)); bottom: auto; left: 50%; }
+.campo-com-sinal { display: flex; gap: 8px; }
+.campo-com-sinal input { flex: 1; }
+.botao-sinal { flex: none; min-width: 52px; }
